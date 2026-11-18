@@ -140,6 +140,31 @@ Roteiro de homologação real de segurança e concorrência da 03B, ainda penden
 
 Testes unitários e contratuais não comprovam RLS, locks, idempotência ou concorrência reais. Essas verificações permanecem pendentes junto da homologação da 03A.
 
+### Tela Hoje da Entrega 03C
+
+**Status em 19/11/2026:** a homologação funcional foi concluída com 10/10 verificações aprovadas, incluindo indicadores, cuidados pendentes, ações rápidas, histórico, fotografias privadas, troca de jardim e responsividade mobile. Permanecem pendentes a homologação real RLS/Storage entre jardins, os testes reais de concorrência e idempotência da RPC, a identificação segura dos demais membros, a limpeza de fotografias órfãs e a otimização do bundle.
+
+- **Plantas ativas** conta `plants.status = active` no jardim selecionado.
+- **Verificações** conta agendas `watering_check` ativas, de plantas não arquivadas, com `next_due_date` anterior ou igual à data civil atual do jardim.
+- **Outros cuidados** aplica a mesma regra às demais categorias. Agendas futuras, inativas e plantas arquivadas não entram nos contadores.
+- “Precisam de atenção” mostra até 20 agendas vencidas ou previstas para hoje, ordenadas por data e ID. “Próximos cuidados” mostra até 5 agendas futuras e não constitui calendário.
+- Atividades recentes mostram os 5 eventos reais mais novos do jardim. Outros atores continuam identificados como “Membro do jardim” por causa da RLS atual de `profiles`.
+- Fotos são obtidas por signed URLs privadas. Consultas, caches e invalidações incluem o jardim ativo; ações rápidas reutilizam a RPC e a intenção idempotente da 03B.
+- Uma falha incerta mantém UUID, horário e payload para retry. A lista só é atualizada depois da resposta do backend ou de uma refetch após erro.
+
+Roteiro de homologação real de segurança e concorrência da 03C, ainda pendente:
+
+1. Crie agendas vencidas, para hoje e futuras; confirme contadores, ordem crescente, destaque de atraso e separação das seções.
+2. Registre rega e confirme evento, recálculo da agenda, indicadores, pendências, próximos cuidados e atividade recente.
+3. Registre solo úmido e confirme `moisture_checked`, sem evento de rega.
+4. Adie um cuidado e confirme sua movimentação para a seção correspondente; conclua também um cuidado não relacionado à rega.
+5. Verifique foto privada, ausência de fotografia, timezone do jardim e virada da data civil.
+6. Alterne jardins durante carregamentos e confirme ausência de dados cruzados ou respostas atrasadas visíveis.
+7. Valide layout e uso por teclado em 375 px, 390 px e desktop.
+8. Com duas sessões autenticadas e sem `service_role`, teste isolamento de leitura/escrita, acesso revogado, retry do mesmo `request_id`, ações simultâneas distintas e conflito por agenda desativada ou planta arquivada.
+
+Os testes locais não comprovam RLS, locks, idempotência ou concorrência reais. Esses pontos permanecem pendentes até execução no Supabase de homologação.
+
 ### Contrato de plantas e fotos
 
 - `status`: `active`, `recovering`, `archived`.
@@ -218,8 +243,8 @@ Execute este roteiro após aplicar as duas migrations em Supabase local ou em um
 
 ## Escopo atual
 
-Implementado: autenticação, perfil provisionado, jardins e memberships seguros, persistência/RLS de plantas, cadastro/listagem/detalhes/edição de plantas, arquivamento/restauração, troca de foto principal privada por signed URL, estrutura/RLS/RPC de cuidados e interface de rotinas/eventos nos detalhes da planta, seletor de jardim, indicador real de plantas ativas, páginas honestas de Calendário, layout responsivo e infraestrutura Vercel.
+Implementado: autenticação, perfil provisionado, jardins e memberships seguros, persistência/RLS de plantas, cadastro/listagem/detalhes/edição de plantas, arquivamento/restauração, troca de foto principal privada por signed URL, estrutura/RLS/RPC de cuidados, interface de rotinas/eventos e tela Hoje com indicadores, pendências, ações rápidas, próximos cuidados e atividades reais, seletor de jardim, página honesta de Calendário, layout responsivo e infraestrutura Vercel.
 
-Ainda não implementado: cuidados na tela Hoje, calendário funcional de cuidados, remoção/limpeza de fotos órfãs, compressão de imagens, diário fotográfico, convites, gestão de membros, notificações, offline e pagamentos. Permanecem pendentes as homologações reais de RLS/Storage do Épico 02 e de RLS/RPC/concorrência/idempotência das Entregas 03A e 03B, além da otimização do bundle.
+Ainda não implementado: calendário funcional de cuidados, remoção/limpeza de fotos órfãs, compressão de imagens, diário fotográfico, convites, gestão de membros, notificações, offline e pagamentos. Permanecem pendentes as homologações reais de RLS/Storage do Épico 02 e de RLS/RPC/concorrência/idempotência das Entregas 03A, 03B e 03C, a identificação segura de outros membros no histórico e a otimização do bundle.
 
 O manifest usa diretamente o asset original disponível de 192×192. Para PWA completa, forneça posteriormente um ícone original de 512×512; esta entrega não inventa upscale ou redesenho.

@@ -5,7 +5,7 @@ import type { Plant, PlantInsertPayload, PlantListFilters, PlantStatus, PlantUpd
 
 const plantColumns = "id, garden_id, nickname, species, main_photo_path, location, acquired_at, origin, light_exposure, pot_soil_notes, notes, status, created_by, created_at, updated_at"
 
-async function signPlantPhotos(plants: Plant[]) {
+export async function signPlantPhotos<T extends { main_photo_path: string | null }>(plants: T[]): Promise<Array<T & { signedPhotoUrl: string | null }>> {
   const paths = plants.flatMap((plant) => plant.main_photo_path ? [plant.main_photo_path] : [])
   if (!paths.length) return plants.map((plant) => ({ ...plant, signedPhotoUrl: null }))
   const { data, error } = await supabase.storage.from("plant-photos").createSignedUrls(paths, 10 * 60)

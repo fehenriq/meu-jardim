@@ -1,0 +1,1 @@
+export function LoadingScreen() { return <div className="flex min-h-screen items-center justify-center"><div role="status" className="flex items-center gap-3 text-muted-foreground"><span className="size-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />Carregando seu jardim…</div></div> }

@@ -1,0 +1,4 @@
+import { Leaf } from "lucide-react"
+import { Button } from "@/components/ui/button"
+
+export function EmptyState({ title, description, action }: { title: string; description: string; action: string }) { return <div className="flex min-h-72 flex-col items-center justify-center rounded-[2rem] border border-dashed border-border bg-card/50 px-5 py-12 text-center"><div className="flex size-16 items-center justify-center rounded-full bg-secondary"><Leaf className="size-8 text-primary" /></div><h2 className="mt-5 font-serif text-2xl font-bold">{title}</h2><p className="mt-2 text-muted-foreground">{description}</p><Button className="mt-5" disabled title="Disponível na próxima etapa">{action}<span className="sr-only"> — disponível na próxima etapa</span></Button><p className="mt-2 text-xs text-muted-foreground">Disponível na próxima etapa</p></div> }

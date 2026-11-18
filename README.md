@@ -165,6 +165,33 @@ Roteiro de homologação real de segurança e concorrência da 03C, ainda penden
 
 Os testes locais não comprovam RLS, locks, idempotência ou concorrência reais. Esses pontos permanecem pendentes até execução no Supabase de homologação.
 
+### Calendário de cuidados da Entrega 03D
+
+- A rota `/app/calendar` é carregada por `React.lazy`, com fallback próprio, e oferece visualização semanal ou mensal. No primeiro acesso da sessão, o padrão é semana no celular e mês no desktop; a escolha manual fica em `sessionStorage`.
+- Agendas são consultadas no servidor pelo intervalo civil visível, limitadas a 200, ativas e sem plantas arquivadas. Somente `next_due_date` é exibida: o frontend não projeta recorrências futuras.
+- Eventos são consultados em uma janela UTC ampliada, limitados a 200, e posicionados pela data local em `gardens.timezone`. Eventos de plantas arquivadas e regas espontâneas continuam no histórico.
+- Previsto, vencido, realizado, solo verificado e adiamento são estados distintos. Agenda e evento no mesmo dia permanecem itens separados e rotulados.
+- Filtros por planta e tipo são aplicados igualmente à grade, resumo do dia e detalhes. Trocar de jardim remonta o estado da tela e remove caches incompatíveis.
+- Itens previstos elegíveis reutilizam a RPC e a intenção idempotente da 03B. Após sucesso ou falha incerta, Calendário, Hoje e detalhes da planta são invalidados.
+- Itens históricos são somente leitura. Outros atores continuam identificados como “Membro do jardim” enquanto a RLS de `profiles` não autorizar seus nomes.
+
+Homologação funcional da 03D aprovada com 12/12 verificações, cobrindo visualização semanal e mensal, navegação entre períodos, retorno para hoje, filtros, seleção e resumo de dias, detalhes, histórico, ações rápidas, isolamento visual entre jardins, fuso horário do jardim e responsividade mobile/desktop.
+
+Roteiro real de segurança e concorrência da 03D, ainda pendente:
+
+1. Abra Calendário em 375 px, 390 px e desktop; confirme padrão semana/mês, troca manual persistida na sessão, navegação anterior/próxima e botão Hoje.
+2. Valide semanas e grades mensais que cruzam mês e ano, seleção de dias e timezone do jardim próximo à meia-noite UTC.
+3. Crie agenda vencida, para hoje e futura; confirme somente a próxima ocorrência persistida, sem projeções inventadas.
+4. Registre rega, inspeção, adiamento, conclusão e rega espontânea; confirme estados separados e histórico nas datas locais corretas.
+5. Aplique filtros por planta e tipo, limpe-os e confirme estados vazios distintos.
+6. Abra detalhes de agenda e evento; confirme ações somente para agendas ativas de plantas elegíveis e histórico somente leitura.
+7. Execute ação rápida e confirme atualização do Calendário, Hoje, agenda e histórico. Simule falha incerta e repita a mesma intenção.
+8. Arquive uma planta e confirme ausência de novos previstos e preservação de eventos históricos.
+9. Alterne jardins durante carregamentos e confirme ausência de dados cruzados.
+10. Com duas contas autenticadas e sem `service_role`, tente ler e agir sobre IDs do outro jardim; valide também retry idempotente e ações simultâneas distintas.
+
+Testes locais e contratos não comprovam RLS, locks, concorrência ou idempotência reais. O limite de 200 itens é sinalizado na interface; paginação incremental pode ser adicionada se um único período atingir esse volume.
+
 ### Contrato de plantas e fotos
 
 - `status`: `active`, `recovering`, `archived`.
@@ -243,8 +270,8 @@ Execute este roteiro após aplicar as duas migrations em Supabase local ou em um
 
 ## Escopo atual
 
-Implementado: autenticação, perfil provisionado, jardins e memberships seguros, persistência/RLS de plantas, cadastro/listagem/detalhes/edição de plantas, arquivamento/restauração, troca de foto principal privada por signed URL, estrutura/RLS/RPC de cuidados, interface de rotinas/eventos e tela Hoje com indicadores, pendências, ações rápidas, próximos cuidados e atividades reais, seletor de jardim, página honesta de Calendário, layout responsivo e infraestrutura Vercel.
+Implementado: autenticação, perfil provisionado, jardins e memberships seguros, persistência/RLS de plantas, cadastro/listagem/detalhes/edição de plantas, arquivamento/restauração, troca de foto principal privada por signed URL, estrutura/RLS/RPC de cuidados, interface de rotinas/eventos, tela Hoje e Calendário semanal/mensal com dados reais, filtros, detalhes e ações rápidas, seletor de jardim, layout responsivo e infraestrutura Vercel.
 
-Ainda não implementado: calendário funcional de cuidados, remoção/limpeza de fotos órfãs, compressão de imagens, diário fotográfico, convites, gestão de membros, notificações, offline e pagamentos. Permanecem pendentes as homologações reais de RLS/Storage do Épico 02 e de RLS/RPC/concorrência/idempotência das Entregas 03A, 03B e 03C, a identificação segura de outros membros no histórico e a otimização do bundle.
+Ainda não implementado: projeção de recorrências futuras, paginação incremental do calendário acima de 200 itens, remoção/limpeza de fotos órfãs, compressão de imagens, diário fotográfico, convites, gestão de membros, notificações, offline e pagamentos. Permanecem pendentes as homologações reais de RLS/Storage do Épico 02 e de RLS/RPC/concorrência/idempotência das Entregas 03A–03D, a identificação segura de outros membros no histórico e a otimização do bundle além do lazy loading pontual.
 
 O manifest usa diretamente o asset original disponível de 192×192. Para PWA completa, forneça posteriormente um ícone original de 512×512; esta entrega não inventa upscale ou redesenho.

@@ -86,10 +86,22 @@ Execute este roteiro após aplicar as duas migrations em Supabase local ou em um
 11. Defina `main_photo_path` com o path válido da própria planta e depois tente apontar para outro jardim ou planta; o segundo update deve falhar.
 12. Valide que Auth, `create_garden`, `profiles`, `gardens` e `garden_members` continuam operando como antes.
 
+### Fluxo frontend de plantas
+
+**Status em 18/11/2026:** a homologação funcional da Entrega 02B foi concluída com 8/8 verificações aprovadas. Os testes reais de isolamento RLS e Storage entre usuários de jardins distintos permanecem pendentes.
+
+- A lista consulta somente o `garden_id` ativo, com busca por apelido, filtros de localização/status e páginas de 12 itens.
+- O cadastro cria a planta primeiro e, quando houver foto, envia um objeto novo para `plant-photos` antes de associar `main_photo_path`.
+- Uma falha de foto não desfaz nem repete o cadastro da planta. O diálogo permite retomar o upload ou somente a associação, conforme a etapa que falhou.
+- Se o upload concluir e a associação falhar definitivamente, o objeto pode permanecer órfão porque a policy atual bloqueia `DELETE`. Ele não é exibido e não é reenviado durante a tentativa de associação.
+- Fotos usam signed URLs com validade de 10 minutos, renovadas enquanto lista ou detalhes permanecem ativos. URLs assinadas não são persistidas.
+- A imagem original não é comprimida pelo frontend nesta entrega; tipo e tamanho são validados antes do envio para evitar conversões inesperadas.
+- A contagem da tela Hoje considera somente plantas com status `active`. Métricas de cuidados continuam identificadas como futuras.
+
 ## Escopo atual
 
-Implementado: autenticação, perfil provisionado, jardins e memberships seguros, persistência/RLS de plantas, Storage privado preparado, seletor de jardim, estados vazios de Hoje e Plantas, páginas honestas de Calendário, layout responsivo e infraestrutura Vercel.
+Implementado: autenticação, perfil provisionado, jardins e memberships seguros, persistência/RLS de plantas, cadastro/listagem/detalhes de plantas, foto principal privada por signed URL, seletor de jardim, indicador real de plantas ativas, páginas honestas de Calendário, layout responsivo e infraestrutura Vercel.
 
-Ainda não implementado: telas/hooks de CRUD de plantas, upload/compressão/signed URLs no cliente, cuidados, calendário funcional, convites, gestão de membros, notificações, offline e pagamentos. A camada de banco de plantas existe, mas o frontend ainda não a consulta nesta Entrega 02A.
+Ainda não implementado: edição, arquivamento/restauração pela interface, remoção/limpeza de fotos, compressão de imagens, cuidados, diário fotográfico, calendário funcional, convites, gestão de membros, notificações, offline e pagamentos. Os testes reais de isolamento RLS/Storage entre dois usuários continuam pendentes.
 
 O manifest usa diretamente o asset original disponível de 192×192. Para PWA completa, forneça posteriormente um ícone original de 512×512; esta entrega não inventa upscale ou redesenho.

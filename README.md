@@ -21,12 +21,70 @@ Preencha `.env.local` somente com a URL e a chave pública/anon do projeto. Nunc
    - `supabase/migrations/202611170001_foundation.sql`
    - `supabase/migrations/202611180001_plants_and_private_photos.sql`
    - `supabase/migrations/202611190001_care_schedules_and_events.sql`
+   - `supabase/migrations/202611190002_growth_diary.sql`
 3. Em **Authentication > URL Configuration**, configure **Site URL** com a URL local ou de produção.
 4. Adicione em **Redirect URLs**: `http://localhost:5173/**` e `https://SEU-DOMINIO-VERCEL/**`.
 5. Em **Authentication > Providers > Email**, decida se confirmação de e-mail será obrigatória. O frontend respeita ambos os modos.
 6. Para um ambiente familiar fechado, desabilite novos cadastros nas configurações reais de Auth quando terminar os testes. Esconder o botão no frontend não bloqueia a API de cadastro. Convites seguros ficam para etapa futura.
 
 A fundação cria `profiles`, `gardens`, `garden_members`, índices, triggers, RLS e a RPC transacional `create_garden`. A migration incremental cria `plants`, suas policies e o bucket privado `plant-photos`; ela não altera as tabelas ou funções da fundação.
+
+### Estrutura e segurança do diário de crescimento — Entrega 04A
+
+- `growth_entries` registra o instante real em `observed_at` como `timestamptz`; a futura interface deve exibi-lo no `gardens.timezone`. Altura é opcional, finita e não negativa; folhas são opcionais, inteiras e não negativas; observações são opcionais e limitadas a 4.000 caracteres.
+- Um registro sem medição ou texto é permitido apenas para viabilizar um agrupamento composto somente por fotos, pois a associação ocorre em outra tabela. A futura interface não deve criar registros vazios sem ao menos uma foto associada e deve sinalizar associações parciais.
+- `plant_photos` aceita várias fotos por registro e fotos independentes, sem limite arbitrário. Listagens extensas deverão usar paginação por `created_at` e `id` antes da implementação da interface.
+- Jardim, autoria e responsável pelo upload são derivados pelo banco. Jardim, planta, autoria e caminho são imutáveis; uma foto independente pode ser associada uma única vez a um registro da mesma planta e jardim, sem posterior troca ou remoção dessa associação.
+- Membros atuais podem ler o histórico e editar somente `observed_at`, `height_cm`, `leaf_count` e `notes` em registros, além de `taken_at` e da primeira associação de `growth_entry_id` em fotos independentes. Não há `DELETE` cliente. Novos registros e novas linhas de foto são bloqueados para plantas arquivadas, enquanto o histórico existente permanece legível.
+- O bucket privado `plant-photos`, o limite de 5 MiB, os MIME types JPEG/PNG/WebP, o formato `<garden_id>/<plant_id>/<uuid>.<ext>` e as policies existentes são reutilizados sem alteração. `plants.main_photo_path` e objetos existentes não são migrados, sobrescritos ou apagados.
+- URLs devem continuar assinadas somente no cliente autenticado. Não use `getPublicUrl`, `service_role` ou segredo no frontend.
+
+Contrato recomendado para upload e associação futura:
+
+1. Gere um UUID de arquivo e envie o objeto para o path da planta no bucket privado.
+2. Insira `plant_photos` com `plant_id`, `storage_path`, `taken_at` opcional e `growth_entry_id` opcional. O banco deriva `garden_id` e `uploaded_by`; `storage_path` único torna retries detectáveis.
+3. Para um registro composto somente por fotos, crie `growth_entries` e associe cada foto ainda independente com um único `UPDATE growth_entry_id`. A FK composta rejeita registros de outra planta ou jardim.
+4. Se o upload concluir e o INSERT falhar, o objeto fica órfão; se a foto independente for registrada e a criação do diário falhar, ela permanece independente. O cliente não deve repetir upload quando já conhece o path e não pode apagar o objeto. Limpeza segura e reconciliação idempotente permanecem pendentes.
+
+Aplicação manual da 04A:
+
+```sql
+select current_database(), current_user;
+select to_regclass('public.plants'), to_regclass('public.growth_entries'), to_regclass('public.plant_photos');
+select conname from pg_constraint where conname = 'plants_id_garden_unique';
+select id, public, file_size_limit, allowed_mime_types from storage.buckets where id = 'plant-photos';
+```
+
+Antes da primeira aplicação, `plants` e `plants_id_garden_unique` devem existir, `growth_entries` e `plant_photos` devem ser nulas, e o bucket deve permanecer privado com o contrato atual. Revise conscientemente o projeto, faça backup e execute `supabase/migrations/202611190002_growth_diary.sql` no SQL Editor.
+
+**Status da Entrega 04A:** a migration `202611190002_growth_diary.sql` foi aplicada manualmente no Supabase. As verificações estruturais confirmaram RLS ativo e policies `SELECT`, `INSERT` e `UPDATE` em `growth_entries` e `plant_photos`; policies `SELECT`, `INSERT` e `UPDATE` no Storage; e o bucket `plant-photos` privado, limitado a 5 MiB e aos formatos JPEG, PNG e WebP. Os testes reais de isolamento RLS e Storage entre jardins continuam pendentes.
+
+Consultas de pós-verificação:
+
+```sql
+select to_regclass('public.growth_entries'), to_regclass('public.plant_photos');
+select relname, relrowsecurity from pg_class where relnamespace = 'public'::regnamespace and relname in ('growth_entries', 'plant_photos');
+select tablename, policyname, cmd, roles from pg_policies where schemaname = 'public' and tablename in ('growth_entries', 'plant_photos') order by tablename, cmd;
+select conrelid::regclass, conname, pg_get_constraintdef(oid) from pg_constraint where conrelid in ('public.growth_entries'::regclass, 'public.plant_photos'::regclass) order by conrelid::regclass::text, conname;
+select grantee, table_name, privilege_type from information_schema.role_table_grants where table_schema = 'public' and table_name in ('growth_entries', 'plant_photos') order by table_name, grantee, privilege_type;
+select grantee, table_name, column_name, privilege_type from information_schema.column_privileges where table_schema = 'public' and table_name in ('growth_entries', 'plant_photos') order by table_name, grantee, privilege_type, column_name;
+select id, public, file_size_limit, allowed_mime_types from storage.buckets where id = 'plant-photos';
+select policyname, cmd, roles from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname like 'plant_photos_%' order by policyname;
+```
+
+Roteiro real com dois usuários em um projeto exclusivo de homologação:
+
+1. Crie usuários A e B, jardins A e B e plantas ativas distintas; use apenas sessões `authenticated`, nunca `service_role` ou `postgres`, para validar RLS.
+2. Como A, crie registro com altura, folhas e texto; confirme autoria derivada, timezone na apresentação e rejeição de altura não finita/negativa, folhas negativas e texto acima do limite.
+3. Como A, crie registros apenas com texto, apenas com foto e com várias fotos; confirme que paths e vínculos pertencem à mesma planta e jardim.
+4. Como B, tente ler, inserir e atualizar registros e fotos de A mesmo conhecendo seus UUIDs e paths; todas as operações devem retornar vazio ou ser negadas.
+5. Tente forjar `garden_id`, `created_by` e `uploaded_by`, trocar planta/jardim/autoria, apontar path para outra planta e associar foto a registro de outra planta ou jardim; tudo deve ser negado.
+6. Confirme que uma foto independente pode receber uma associação válida uma vez, mas não pode ser reassociada ou desassociada.
+7. Arquive a planta após criar histórico; confirme leitura do histórico e bloqueio de novas entradas e linhas de foto. Confirme também que a foto principal antiga continua acessível por signed URL aos membros.
+8. Confirme que `DELETE` é negado em `growth_entries`, `plant_photos` e `storage.objects` e que o bucket continua privado, limitado a 5 MiB e aos MIME types existentes.
+9. Simule falha após upload e antes do INSERT, e falha após registrar foto independente e antes da associação; confirme o estado parcial documentado sem reupload automático nem exclusão cliente.
+
+Os testes Vitest desta entrega são contratuais e não comprovam PostgreSQL, RLS ou Storage reais. Isolamento entre jardins, comportamento do Storage, falhas parciais e compatibilidade de fotos principais continuam pendentes até a execução desse roteiro.
 
 ### Contrato de agendas e eventos de cuidados
 
@@ -270,8 +328,8 @@ Execute este roteiro após aplicar as duas migrations em Supabase local ou em um
 
 ## Escopo atual
 
-Implementado: autenticação, perfil provisionado, jardins e memberships seguros, persistência/RLS de plantas, cadastro/listagem/detalhes/edição de plantas, arquivamento/restauração, troca de foto principal privada por signed URL, estrutura/RLS/RPC de cuidados, interface de rotinas/eventos, tela Hoje e Calendário semanal/mensal com dados reais, filtros, detalhes e ações rápidas, seletor de jardim, layout responsivo e infraestrutura Vercel.
+Implementado: autenticação, perfil provisionado, jardins e memberships seguros, persistência/RLS de plantas, cadastro/listagem/detalhes/edição de plantas, arquivamento/restauração, troca de foto principal privada por signed URL, estrutura segura do diário de crescimento e suas fotografias, estrutura/RLS/RPC de cuidados, interface de rotinas/eventos, tela Hoje e Calendário semanal/mensal com dados reais, filtros, detalhes e ações rápidas, seletor de jardim, layout responsivo e infraestrutura Vercel.
 
-Ainda não implementado: projeção de recorrências futuras, paginação incremental do calendário acima de 200 itens, remoção/limpeza de fotos órfãs, compressão de imagens, diário fotográfico, convites, gestão de membros, notificações, offline e pagamentos. Permanecem pendentes as homologações reais de RLS/Storage do Épico 02 e de RLS/RPC/concorrência/idempotência das Entregas 03A–03D, a identificação segura de outros membros no histórico e a otimização do bundle além do lazy loading pontual.
+Ainda não implementado: interface do diário e comparação fotográfica, paginação de históricos extensos, projeção de recorrências futuras, paginação incremental do calendário acima de 200 itens, remoção/limpeza de fotos órfãs, compressão de imagens, convites, gestão de membros, notificações, offline e pagamentos. Permanecem pendentes as homologações reais de RLS/Storage dos Épicos 02 e 04, os testes reais de RLS/RPC/concorrência/idempotência das Entregas 03A–03D, a identificação segura de outros membros no histórico e a otimização do bundle além do lazy loading pontual.
 
 O manifest usa diretamente o asset original disponível de 192×192. Para PWA completa, forneça posteriormente um ícone original de 512×512; esta entrega não inventa upscale ou redesenho.

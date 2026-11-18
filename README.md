@@ -115,6 +115,31 @@ rollback;
 
 Repita a primeira chamada com o mesmo `request_id` e confirme o mesmo `id` de evento sem nova linha. Em uma segunda sessão com `USER_B_UUID`, tente usar IDs do Jardim A e confirme negação. Teste também agenda de outro jardim, agenda inativa, planta arquivada, `defer_days` inválido e ações incompatíveis. Para concorrência, mantenha duas transações autenticadas como membros do mesmo jardim, execute ações com `request_id` distintos na mesma agenda e confirme dois eventos preservados e atualização serializada. Compare `event_at`, `next_due_date` e o timezone do jardim em casos imediatamente antes e depois da meia-noite local. Use `rollback` durante a preparação e não use `service_role` ou sessão `postgres` para afirmar que RLS foi validada.
 
+### Interface de cuidados da Entrega 03B
+
+**Status em 19/11/2026:** a homologação funcional foi concluída com 10/10 verificações aprovadas, incluindo rega programada, inspeção de umidade, adiamento, conclusão de cuidado, criação e edição de rotinas, ativação/desativação, rega espontânea e histórico. Permanecem pendentes a homologação RLS/Storage entre jardins, os testes reais de idempotência e concorrência da RPC, a identificação segura dos demais membros no histórico, a limpeza de fotografias órfãs e a otimização do bundle.
+
+- A página de detalhes da planta lista, cria e edita rotinas usando somente os campos concedidos pela migration 03A. Ativação e desativação usam `active`; não há exclusão de agendas ou eventos.
+- Verificação de rega oferece `watered`, `moisture_checked` e `deferred`. Outros tipos oferecem `care_completed` e `deferred`. Rega espontânea envia `schedule_id = null` e não escolhe uma agenda.
+- Cada confirmação cria um `request_id`. Se a resposta for incerta, o botão de repetição reutiliza a mesma intenção, inclusive UUID e horário; uma ação nova recebe outro UUID.
+- Próximas datas são lidas do retorno real do banco. O frontend não recalcula agendas e trata `next_due_date` como data civil.
+- O histórico mostra até 30 eventos reais, sem operações de edição ou exclusão. O perfil atual pode ser nomeado; outros atores aparecem como “Membro do jardim” porque a RLS de `profiles` não permite consultar perfis de terceiros.
+- Plantas arquivadas exibem rotinas e histórico em modo somente leitura. Os caches são separados por jardim e planta e removidos na troca de jardim.
+
+Roteiro de homologação real de segurança e concorrência da 03B, ainda pendente:
+
+1. Em duas sessões autenticadas, crie Jardim A/Planta A e Jardim B/Planta B sem `service_role`.
+2. Como membro de A, crie rotinas de todos os tipos, incluindo duas independentes do mesmo tipo e uma personalizada; edite, desative e reative sem perder eventos.
+3. Registre rega, solo úmido, adiamento e conclusão compatível. Confirme no banco os tipos de evento e as datas retornadas pela RPC.
+4. Faça rega espontânea e confirme que nenhuma agenda foi escolhida ou recalculada.
+5. Simule resposta incerta e repita a mesma intenção; confirme um único evento para o mesmo `request_id`. Inicie nova ação e confirme UUID distinto.
+6. Execute ações simultâneas com UUIDs diferentes na mesma agenda e valide eventos preservados e atualização serializada.
+7. Como usuário de B, tente listar e alterar agendas/eventos de A e invocar a RPC com IDs de A; todas as tentativas devem ser negadas ou vazias.
+8. Arquive a planta e confirme histórico visível, ações bloqueadas e ausência nas pendências; restaure e confirme retomada segura.
+9. Teste horários próximos à meia-noite no timezone do jardim e valide DD/MM/AAAA sem deslocamento da data civil.
+
+Testes unitários e contratuais não comprovam RLS, locks, idempotência ou concorrência reais. Essas verificações permanecem pendentes junto da homologação da 03A.
+
 ### Contrato de plantas e fotos
 
 - `status`: `active`, `recovering`, `archived`.
@@ -193,8 +218,8 @@ Execute este roteiro após aplicar as duas migrations em Supabase local ou em um
 
 ## Escopo atual
 
-Implementado: autenticação, perfil provisionado, jardins e memberships seguros, persistência/RLS de plantas, cadastro/listagem/detalhes/edição de plantas, arquivamento/restauração, troca de foto principal privada por signed URL, estrutura/RLS/RPC de agendas e eventos de cuidados, seletor de jardim, indicador real de plantas ativas, páginas honestas de Calendário, layout responsivo e infraestrutura Vercel.
+Implementado: autenticação, perfil provisionado, jardins e memberships seguros, persistência/RLS de plantas, cadastro/listagem/detalhes/edição de plantas, arquivamento/restauração, troca de foto principal privada por signed URL, estrutura/RLS/RPC de cuidados e interface de rotinas/eventos nos detalhes da planta, seletor de jardim, indicador real de plantas ativas, páginas honestas de Calendário, layout responsivo e infraestrutura Vercel.
 
-Ainda não implementado: interface e hooks de cuidados, remoção/limpeza de fotos órfãs, compressão de imagens, diário fotográfico, calendário funcional, convites, gestão de membros, notificações, offline e pagamentos. Permanecem pendentes as homologações reais de RLS/Storage do Épico 02 e de RLS/RPC da Entrega 03A, além da otimização do bundle.
+Ainda não implementado: cuidados na tela Hoje, calendário funcional de cuidados, remoção/limpeza de fotos órfãs, compressão de imagens, diário fotográfico, convites, gestão de membros, notificações, offline e pagamentos. Permanecem pendentes as homologações reais de RLS/Storage do Épico 02 e de RLS/RPC/concorrência/idempotência das Entregas 03A e 03B, além da otimização do bundle.
 
 O manifest usa diretamente o asset original disponível de 192×192. Para PWA completa, forneça posteriormente um ícone original de 512×512; esta entrega não inventa upscale ou redesenho.

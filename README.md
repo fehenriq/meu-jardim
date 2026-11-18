@@ -86,6 +86,33 @@ Roteiro real com dois usuários em um projeto exclusivo de homologação:
 
 Os testes Vitest desta entrega são contratuais e não comprovam PostgreSQL, RLS ou Storage reais. Isolamento entre jardins, comportamento do Storage, falhas parciais e compatibilidade de fotos principais continuam pendentes até a execução desse roteiro.
 
+### Diário fotográfico e linha do tempo — Entrega 04B
+
+- A página de detalhes consulta `growth_entries` pelo jardim e planta atuais em páginas de 8, ordenadas no servidor por `observed_at desc, id desc`. Cada página carrega somente suas fotografias vinculadas; o cache inclui jardim e planta e é removido quando o escopo muda.
+- Data e hora são preenchidas e exibidas no `gardens.timezone`, enquanto o payload persiste um instante ISO em `timestamptz`. Altura, folhas e observações são opcionais, mas o formulário exige ao menos uma medição, texto ou fotografia.
+- Cada fotografia recebe um path UUID estável antes do envio, nunca sobrescreve objetos e é registrada em `plant_photos` somente no escopo atual. URLs são assinadas por 10 minutos e as consultas são renovadas antes da expiração; URLs assinadas não são persistidas nem registradas em logs.
+- Falhas parciais preservam o registro, paths e etapas já confirmadas. A recuperação não repete uploads ou associações concluídos e reconcilia respostas incertas consultando o objeto e `storage_path` antes de continuar. Não há rollback fictício nem `DELETE` cliente; objetos enviados sem linha confirmada ainda podem ficar órfãos.
+- Como 04A não possui chave idempotente de requisição para `growth_entries`, uma resposta incerta na criação é reconciliada por usuário, planta, `observed_at` e conteúdo. Resultado único é reutilizado, resultado ambíguo bloqueia nova criação, mas concorrência idêntica entre sessões não possui garantia transacional. Uma chave idempotente de banco permanece uma melhoria futura; nenhuma migration adicional foi criada nesta entrega.
+- A linha do tempo identifica o perfil atual e usa “Membro do jardim” para outros autores enquanto a RLS de `profiles` não permitir nomes. Plantas arquivadas mantêm o histórico e bloqueiam o formulário de criação.
+- Fotografias podem ser ampliadas em diálogo responsivo, com restauração e contenção de foco, ESC e setas do teclado, além de controles visíveis no mobile.
+
+**Status da Entrega 04B:** a homologação funcional foi concluída com 12/12 verificações aprovadas, incluindo registros de crescimento, medições, múltiplas fotografias, paginação, persistência após recarga, recuperação parcial, histórico de plantas arquivadas, troca de jardim/planta e responsividade mobile.
+
+Roteiro de regressão funcional e homologação real de segurança da 04B:
+
+1. Crie um registro somente com observação e confirme o horário no fuso do jardim.
+2. Crie um registro somente com fotos e outro com altura e folhas; confirme persistência após recarregar.
+3. Envie várias fotos JPEG, PNG e WebP válidas, abra as miniaturas e percorra a ampliação por controles, ESC, Tab, Shift+Tab e setas em desktop e mobile.
+4. Simule falha no segundo upload; confirme que o registro e a primeira foto não são duplicados e retome somente a fotografia pendente.
+5. Simule falha após upload e antes da associação; confirme reconciliação pelo mesmo path, ausência de reupload e sinalização do risco residual de objeto órfão.
+6. Tente GIF, arquivo acima de 5 MiB, altura negativa ou não finita, folhas negativas ou fracionárias e formulário sem conteúdo; todos devem ser rejeitados.
+7. Crie mais de 8 registros e confirme paginação, ordem estável do mais recente ao mais antigo e ausência de carregamento integral.
+8. Arquive a planta; confirme histórico e fotografias legíveis, com criação e upload bloqueados. A foto principal deve permanecer inalterada.
+9. Alterne jardim e planta durante consultas e após uploads; confirme ausência de mistura de dados ou cache.
+10. Com dois usuários de jardins distintos e sem `service_role`, tente consultas, inserts, updates, uploads e URLs assinadas cruzadas; tudo deve ser vazio ou negado.
+
+Os testes locais cobrem schemas, timezone, paginação contratual, chaves de cache, fluxo parcial e reconciliação. Eles não comprovam RLS, Storage, timeouts ou concorrência reais no Supabase; o item 10 e as falhas reais continuam pendentes até homologação com sessões autenticadas.
+
 ### Contrato de agendas e eventos de cuidados
 
 - `care_schedules` aceita rotinas independentes dos tipos `watering_check`, `fertilizing`, `pruning`, `repotting` e `custom`. Rotinas personalizadas exigem título; não há unicidade artificial por planta ou tipo.
@@ -328,8 +355,8 @@ Execute este roteiro após aplicar as duas migrations em Supabase local ou em um
 
 ## Escopo atual
 
-Implementado: autenticação, perfil provisionado, jardins e memberships seguros, persistência/RLS de plantas, cadastro/listagem/detalhes/edição de plantas, arquivamento/restauração, troca de foto principal privada por signed URL, estrutura segura do diário de crescimento e suas fotografias, estrutura/RLS/RPC de cuidados, interface de rotinas/eventos, tela Hoje e Calendário semanal/mensal com dados reais, filtros, detalhes e ações rápidas, seletor de jardim, layout responsivo e infraestrutura Vercel.
+Implementado: autenticação, perfil provisionado, jardins e memberships seguros, persistência/RLS de plantas, cadastro/listagem/detalhes/edição de plantas, arquivamento/restauração, troca de foto principal privada por signed URL, diário de crescimento com múltiplas fotografias privadas, linha do tempo paginada e recuperação parcial, estrutura/RLS/RPC de cuidados, interface de rotinas/eventos, tela Hoje e Calendário semanal/mensal com dados reais, filtros, detalhes e ações rápidas, seletor de jardim, layout responsivo e infraestrutura Vercel.
 
-Ainda não implementado: interface do diário e comparação fotográfica, paginação de históricos extensos, projeção de recorrências futuras, paginação incremental do calendário acima de 200 itens, remoção/limpeza de fotos órfãs, compressão de imagens, convites, gestão de membros, notificações, offline e pagamentos. Permanecem pendentes as homologações reais de RLS/Storage dos Épicos 02 e 04, os testes reais de RLS/RPC/concorrência/idempotência das Entregas 03A–03D, a identificação segura de outros membros no histórico e a otimização do bundle além do lazy loading pontual.
+Ainda não implementado: comparação fotográfica lado a lado, idempotência transacional da criação do diário, projeção de recorrências futuras, paginação incremental do calendário acima de 200 itens, remoção/limpeza de fotos órfãs, compressão de imagens, convites, gestão de membros, notificações, offline e pagamentos. Permanecem pendentes as homologações reais de RLS/Storage dos Épicos 02 e 04, os testes reais de RLS/RPC/concorrência/idempotência das Entregas 03A–03D, a identificação segura de outros membros no histórico e a otimização do bundle além do lazy loading pontual.
 
 O manifest usa diretamente o asset original disponível de 192×192. Para PWA completa, forneça posteriormente um ícone original de 512×512; esta entrega não inventa upscale ou redesenho.

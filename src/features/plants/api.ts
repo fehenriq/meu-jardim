@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase"
 import { createPlantDetailSpec, createPlantListSpec } from "./query-spec"
 import { validatePlantPhoto } from "./schema"
-import type { Plant, PlantInsertPayload, PlantListFilters, PlantWithPhoto } from "./types"
+import type { Plant, PlantInsertPayload, PlantListFilters, PlantStatus, PlantUpdatePayload, PlantWithPhoto } from "./types"
 
 const plantColumns = "id, garden_id, nickname, species, main_photo_path, location, acquired_at, origin, light_exposure, pot_soil_notes, notes, status, created_by, created_at, updated_at"
 
@@ -66,4 +66,31 @@ export async function associatePlantPhoto(gardenId: string, plantId: string, pat
   return data as Plant
 }
 
+export class PlantMutationError extends Error {
+  constructor(public kind: "conflict" | "unavailable") {
+    super(kind)
+  }
+}
+
+async function updatePlantWithVersion(gardenId: string, plantId: string, updatedAt: string, payload: PlantUpdatePayload | { main_photo_path: string } | { status: PlantStatus }) {
+  const { data, error } = await supabase.from("plants").update(payload).eq("garden_id", gardenId).eq("id", plantId).eq("updated_at", updatedAt).select(plantColumns).maybeSingle()
+  if (error) throw error
+  if (data) return data as Plant
+  const current = await getPlant(gardenId, plantId)
+  throw new PlantMutationError(current ? "conflict" : "unavailable")
+}
+
+export function updatePlant(gardenId: string, plantId: string, updatedAt: string, payload: PlantUpdatePayload) {
+  return updatePlantWithVersion(gardenId, plantId, updatedAt, payload)
+}
+
+export function associateReplacementPhoto(gardenId: string, plantId: string, updatedAt: string, path: string) {
+  return updatePlantWithVersion(gardenId, plantId, updatedAt, { main_photo_path: path })
+}
+
+export function updatePlantStatus(gardenId: string, plantId: string, updatedAt: string, status: PlantStatus) {
+  return updatePlantWithVersion(gardenId, plantId, updatedAt, { status })
+}
+
 export const plantWorkflowDependencies = { createPlant, uploadPhoto: uploadPlantPhoto, associatePhoto: associatePlantPhoto }
+export const plantEditWorkflowDependencies = { updatePlant, uploadPhoto: uploadPlantPhoto, associatePhoto: associateReplacementPhoto }

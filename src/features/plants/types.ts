@@ -38,6 +38,8 @@ export type PlantInsertPayload = {
   status: "active"
 }
 
+export type PlantUpdatePayload = Omit<PlantInsertPayload, "status">
+
 export type PlantListFilters = {
   search: string
   location: string

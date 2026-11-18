@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { lightExposures, plantOrigins, type PlantInsertPayload } from "./types"
+import { lightExposures, plantOrigins, type Plant, type PlantInsertPayload, type PlantUpdatePayload } from "./types"
 
 const optionalText = (maximum: number, message: string) => z.string().trim().max(maximum, message).optional().or(z.literal(""))
 
@@ -29,6 +29,25 @@ export function toPlantInsertPayload(values: PlantFormValues): PlantInsertPayloa
     pot_soil_notes: nullable(values.potSoilNotes),
     notes: nullable(values.notes),
     status: "active",
+  }
+}
+
+export function toPlantUpdatePayload(values: PlantFormValues): PlantUpdatePayload {
+  const { status: _status, ...payload } = toPlantInsertPayload(values)
+  void _status
+  return payload
+}
+
+export function toPlantFormValues(plant: Plant): PlantFormValues {
+  return {
+    nickname: plant.nickname,
+    species: plant.species ?? "",
+    location: plant.location ?? "",
+    acquiredAt: plant.acquired_at ?? "",
+    origin: plant.origin ?? "",
+    lightExposure: plant.light_exposure ?? "",
+    potSoilNotes: plant.pot_soil_notes ?? "",
+    notes: plant.notes ?? "",
   }
 }
 

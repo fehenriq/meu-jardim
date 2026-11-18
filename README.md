@@ -90,6 +90,8 @@ Execute este roteiro após aplicar as duas migrations em Supabase local ou em um
 
 **Status em 18/11/2026:** a homologação funcional da Entrega 02B foi concluída com 8/8 verificações aprovadas. Os testes reais de isolamento RLS e Storage entre usuários de jardins distintos permanecem pendentes.
 
+**Status da Entrega 02C em 18/11/2026:** a homologação funcional foi concluída com 8/8 verificações aprovadas, incluindo o conflito de edição entre duas abas. Permanecem pendentes os testes reais de isolamento RLS/Storage, a limpeza segura de fotografias órfãs e a otimização do bundle de produção.
+
 - A lista consulta somente o `garden_id` ativo, com busca por apelido, filtros de localização/status e páginas de 12 itens.
 - O cadastro cria a planta primeiro e, quando houver foto, envia um objeto novo para `plant-photos` antes de associar `main_photo_path`.
 - Uma falha de foto não desfaz nem repete o cadastro da planta. O diálogo permite retomar o upload ou somente a associação, conforme a etapa que falhou.
@@ -97,11 +99,14 @@ Execute este roteiro após aplicar as duas migrations em Supabase local ou em um
 - Fotos usam signed URLs com validade de 10 minutos, renovadas enquanto lista ou detalhes permanecem ativos. URLs assinadas não são persistidas.
 - A imagem original não é comprimida pelo frontend nesta entrega; tipo e tamanho são validados antes do envio para evitar conversões inesperadas.
 - A contagem da tela Hoje considera somente plantas com status `active`. Métricas de cuidados continuam identificadas como futuras.
+- A edição envia somente campos mutáveis e compara o `updated_at` lido antes do `UPDATE`; zero linhas alteradas é tratado como conflito ou ausência de acesso após consulta autorizada.
+- A troca de foto cria um novo objeto privado e preserva a foto anterior até a associação confirmar. Falhas de associação podem deixar um objeto órfão, que não é reenviado na recuperação nem excluído pelo cliente.
+- Arquivamento e restauração alteram somente `status`, respectivamente para `archived` e `active`, e invalidam detalhes, listagens, locais e contagem ativa do jardim.
 
 ## Escopo atual
 
-Implementado: autenticação, perfil provisionado, jardins e memberships seguros, persistência/RLS de plantas, cadastro/listagem/detalhes de plantas, foto principal privada por signed URL, seletor de jardim, indicador real de plantas ativas, páginas honestas de Calendário, layout responsivo e infraestrutura Vercel.
+Implementado: autenticação, perfil provisionado, jardins e memberships seguros, persistência/RLS de plantas, cadastro/listagem/detalhes/edição de plantas, arquivamento/restauração, troca de foto principal privada por signed URL, seletor de jardim, indicador real de plantas ativas, páginas honestas de Calendário, layout responsivo e infraestrutura Vercel.
 
-Ainda não implementado: edição, arquivamento/restauração pela interface, remoção/limpeza de fotos, compressão de imagens, cuidados, diário fotográfico, calendário funcional, convites, gestão de membros, notificações, offline e pagamentos. Os testes reais de isolamento RLS/Storage entre dois usuários continuam pendentes.
+Ainda não implementado: remoção/limpeza de fotos órfãs, compressão de imagens, cuidados, diário fotográfico, calendário funcional, convites, gestão de membros, notificações, offline e pagamentos. Os testes reais de isolamento RLS/Storage entre dois usuários continuam pendentes.
 
 O manifest usa diretamente o asset original disponível de 192×192. Para PWA completa, forneça posteriormente um ícone original de 512×512; esta entrega não inventa upscale ou redesenho.

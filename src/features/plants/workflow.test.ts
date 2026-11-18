@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { createPlantWithOptionalPhoto, createSubmissionGate, recoverPlantPhoto } from "./workflow"
+import { createPlantWithOptionalPhoto, createSubmissionGate, editPlantWithOptionalPhoto, recoverEditedPlantPhoto, recoverPlantPhoto } from "./workflow"
 import type { Plant, PlantInsertPayload } from "./types"
 
 const payload: PlantInsertPayload = { nickname: "Jiboia", species: null, location: null, acquired_at: null, origin: null, light_exposure: null, pot_soil_notes: null, notes: null, status: "active" }
@@ -72,5 +72,57 @@ describe("workflow de cadastro e foto", () => {
     expect(task).toHaveBeenCalledOnce()
     release()
     await first
+  })
+})
+
+describe("workflow de edição e troca de foto", () => {
+  const updatePayload = { nickname: "Jiboia nova", species: null, location: null, acquired_at: null, origin: null, light_exposure: null, pot_soil_notes: null, notes: null }
+  function editDependencies() {
+    const updated = { ...plant, nickname: "Jiboia nova", updated_at: "2026-11-18T01:00:00Z" }
+    return {
+      updatePlant: vi.fn().mockResolvedValue(updated),
+      uploadPhoto: vi.fn().mockResolvedValue("garden-a/plant-a/new.jpg"),
+      associatePhoto: vi.fn().mockResolvedValue({ ...updated, main_photo_path: "garden-a/plant-a/new.jpg", updated_at: "2026-11-18T02:00:00Z" }),
+    }
+  }
+
+  it("preserva a foto quando nenhuma nova imagem é escolhida", async () => {
+    const deps = editDependencies()
+    const current = { ...plant, main_photo_path: "garden-a/plant-a/current.jpg" }
+    const result = await editPlantWithOptionalPhoto("garden-a", current, updatePayload, null, deps)
+    expect(result.state).toBe("complete")
+    expect(deps.updatePlant).toHaveBeenCalledWith("garden-a", "plant-a", plant.updated_at, updatePayload)
+    expect(deps.uploadPhoto).not.toHaveBeenCalled()
+    expect(deps.associatePhoto).not.toHaveBeenCalled()
+  })
+
+  it("envia um novo objeto e associa usando a versão retornada pelo update", async () => {
+    const deps = editDependencies()
+    await editPlantWithOptionalPhoto("garden-a", plant, updatePayload, photo, deps)
+    expect(deps.uploadPhoto).toHaveBeenCalledOnce()
+    expect(deps.associatePhoto).toHaveBeenCalledWith("garden-a", "plant-a", "2026-11-18T01:00:00Z", "garden-a/plant-a/new.jpg")
+  })
+
+  it("registra possível órfão e não reenvia após falha de associação", async () => {
+    const deps = editDependencies()
+    deps.associatePhoto.mockRejectedValue(new Error("conflict"))
+    const result = await editPlantWithOptionalPhoto("garden-a", plant, updatePayload, photo, deps)
+    expect(result.state).toBe("orphaned_photo")
+    if (result.state !== "orphaned_photo") return
+    expect(result.message).toContain("órfão")
+    await recoverEditedPlantPhoto(result.recovery, deps)
+    expect(deps.uploadPhoto).toHaveBeenCalledOnce()
+    expect(deps.associatePhoto).toHaveBeenCalledTimes(2)
+  })
+
+  it("retoma o upload quando o envio inicial falha", async () => {
+    const deps = editDependencies()
+    deps.uploadPhoto.mockRejectedValueOnce(new Error("storage"))
+    const result = await editPlantWithOptionalPhoto("garden-a", plant, updatePayload, photo, deps)
+    expect(result.state).toBe("orphaned_photo")
+    if (result.state !== "orphaned_photo") return
+    expect(result.recovery.kind).toBe("upload")
+    await recoverEditedPlantPhoto(result.recovery, deps)
+    expect(deps.uploadPhoto).toHaveBeenCalledTimes(2)
   })
 })

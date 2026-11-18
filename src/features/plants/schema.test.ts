@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { formatDateOnly, plantFormSchema, toPlantInsertPayload, validatePlantPhoto } from "./schema"
+import { formatDateOnly, plantFormSchema, toPlantFormValues, toPlantInsertPayload, toPlantUpdatePayload, validatePlantPhoto } from "./schema"
+import type { Plant } from "./types"
 
 describe("formulário de planta", () => {
   it("normaliza o payload sem inventar opcionais", () => {
@@ -20,5 +21,12 @@ describe("formulário de planta", () => {
 
   it("formata date sem deslocamento de fuso", () => {
     expect(formatDateOnly("2026-11-18")).toBe("18/11/2026")
+  })
+
+  it("preenche a edição e não envia status ou campos imutáveis", () => {
+    const plant: Plant = { id: "plant-a", garden_id: "garden-a", nickname: "Jiboia", species: null, main_photo_path: "garden-a/plant-a/photo.jpg", location: "Sala", acquired_at: null, origin: null, light_exposure: null, pot_soil_notes: null, notes: null, status: "archived", created_by: "user-a", created_at: "2026-11-18T00:00:00Z", updated_at: "2026-11-18T01:00:00Z" }
+    const values = toPlantFormValues(plant)
+    expect(values).toMatchObject({ nickname: "Jiboia", species: "", location: "Sala" })
+    expect(toPlantUpdatePayload(values)).toEqual({ nickname: "Jiboia", species: null, location: "Sala", acquired_at: null, origin: null, light_exposure: null, pot_soil_notes: null, notes: null })
   })
 })

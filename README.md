@@ -316,6 +316,27 @@ Testes locais e contratos não comprovam RLS, locks, concorrência ou idempotên
 - Exclusão física de plantas e objetos está bloqueada. Plantas usam arquivamento/restauração; remoção segura de fotos fica para um fluxo posterior que confira referências e histórico.
 - Fotos devem ser consumidas por signed URLs temporárias na Entrega 02B; não existem URLs públicas permanentes.
 
+### Perfil e configurações da Entrega 05A
+
+A Entrega 05A adiciona edição do nome público e avatar privado, leitura do e-mail, edição administrativa do nome e timezone IANA do jardim e a RPC `list_garden_authors`, que retorna somente `user_id`, nome público e caminho do avatar de membros do mesmo jardim. A migration incremental `202611200001_profile_and_garden_settings.sql` foi aplicada manualmente no Supabase e teve suas verificações estruturais aprovadas. A homologação funcional da Entrega 05A permanece pendente.
+
+- O bucket `avatars` permanece privado, aceita JPEG, PNG e WebP até 5 MiB e não concede `DELETE` ao cliente. O banco armazena somente o caminho; signed URLs de 10 minutos não são persistidas.
+- O perfil só pode alterar suas próprias colunas já autorizadas. Jardins continuam protegidos por `gardens_update_admin`; a validação de timezone ocorre no cliente e no PostgreSQL.
+- Membros podem visualizar as configurações, mas apenas administradores podem alterá-las. A troca de timezone exige confirmação e não recalcula datas civis ou eventos persistidos.
+- A reinspeção após solo úmido permanece específica por rotina em `care_schedules.settings.moisture_recheck_days`, com padrão de 2 dias. Nenhuma preferência global redundante foi criada.
+- A RPC de autores exige membership no jardim solicitado, não retorna e-mail e deixa usuários removidos com fallback neutro no histórico. Testes contratuais não substituem a validação real de RLS e Storage.
+
+Roteiro de homologação funcional e de segurança real, ainda pendente:
+
+1. Com dois usuários e dois jardins, altere nome e avatar de cada perfil e confirme que signed URLs expiram, paths não são públicos e o outro jardim não consegue ler o objeto.
+2. Como administrador, altere nome e timezone para um identificador IANA válido; confirme o aviso, a preservação das datas persistidas e o novo cálculo civil apenas em ações futuras.
+3. Como membro, leia as configurações e tente atualizá-las pelo formulário e pela API; ambas as escritas devem ser negadas.
+4. Registre cuidados e crescimento pelos dois membros e confirme nomes públicos autorizados, sem e-mails. Revogue uma membership e confirme fallback neutro e ausência de acesso posterior ao avatar.
+5. Alterne rapidamente entre jardins e valide que perfil contextual, autores, configurações e caches não se misturam.
+6. Teste falha após upload e antes da associação do avatar; o objeto pode exigir reconciliação, pois não há `DELETE` amplo. Revogue também sessões e considere o risco residual de signed URLs emitidas antes da revogação.
+
+Permanecem pendentes a homologação real de RLS/Storage entre jardins, concorrência e idempotência das RPCs, idempotência transacional do crescimento, reconciliação de fotografias e avatares órfãos, paginação, otimização do bundle, PWA, backups e a avaliação dos limites do plano gratuito.
+
 ## Deploy na Vercel
 
 1. Importe este diretório como projeto Vite.

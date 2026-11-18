@@ -6,6 +6,7 @@ import { Alert } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/empty-state"
 import { useGarden } from "@/features/gardens/garden-context"
+import { resolveAuthorName } from "@/features/gardens/authors"
 import { useActivePlantCount, useClearForeignGardenPlantQueries } from "@/features/plants/hooks"
 import { firstName, formatLocalDate } from "@/lib/utils"
 import { recordCareAction } from "./api"
@@ -20,7 +21,7 @@ import { availableCareActions, createCareActionIntent, createCareSubmissionGate,
 type ActionDraft = { schedule: TodaySchedule; action: CareAction }
 
 export function TodayCarePage() {
-  const { activeGarden, profile } = useGarden()
+  const { activeGarden, profile, authors } = useGarden()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const gardenId = activeGarden?.id ?? ""
@@ -84,7 +85,7 @@ export function TodayCarePage() {
 
   <section className="mt-9"><h2 className="font-serif text-2xl font-bold">Próximos cuidados</h2>{dashboard.isLoading && <p role="status" className="mt-3 text-muted-foreground">Carregando próximos cuidados…</p>}{dashboard.data?.upcoming.length === 0 && <p className="mt-3 text-muted-foreground">Nenhum cuidado futuro programado.</p>}<div className="mt-3 grid gap-3 sm:grid-cols-2">{dashboard.data?.upcoming.map((schedule) => <Link key={schedule.id} to={`/app/plants/${schedule.plant_id}`} className="rounded-2xl border border-border bg-card p-4 transition-colors hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40"><p className="font-semibold">{schedule.plant.nickname}</p><p className="mt-1 text-sm text-muted-foreground">{schedule.custom_title ?? careTypeLabels[schedule.care_type]} · {formatCivilDate(schedule.next_due_date)}</p></Link>)}</div></section>
 
-  <section className="mt-9"><h2 className="font-serif text-2xl font-bold">Últimas atividades</h2>{dashboard.isLoading && <p role="status" className="mt-3 text-muted-foreground">Carregando atividades…</p>}{dashboard.data?.activities.length === 0 && <p className="mt-3 text-muted-foreground">A família ainda não registrou cuidados.</p>}<ol className="mt-3 space-y-3">{dashboard.data?.activities.map((activity) => <li key={activity.id} className="rounded-2xl border border-border bg-card p-4"><Link to={`/app/plants/${activity.plant_id}`} className="font-semibold text-primary hover:underline">{activity.plant.nickname}</Link><p className="mt-1 text-sm">{careEventLabels[activity.event_type]}</p><p className="mt-1 text-xs text-muted-foreground">{formatEventDateTime(activity.event_at, timeZone)} · {activity.actor_id === profile?.id ? profile.display_name : "Membro do jardim"}</p></li>)}</ol></section></div>
+  <section className="mt-9"><h2 className="font-serif text-2xl font-bold">Últimas atividades</h2>{dashboard.isLoading && <p role="status" className="mt-3 text-muted-foreground">Carregando atividades…</p>}{dashboard.data?.activities.length === 0 && <p className="mt-3 text-muted-foreground">A família ainda não registrou cuidados.</p>}<ol className="mt-3 space-y-3">{dashboard.data?.activities.map((activity) => <li key={activity.id} className="rounded-2xl border border-border bg-card p-4"><Link to={`/app/plants/${activity.plant_id}`} className="font-semibold text-primary hover:underline">{activity.plant.nickname}</Link><p className="mt-1 text-sm">{careEventLabels[activity.event_type]}</p><p className="mt-1 text-xs text-muted-foreground">{formatEventDateTime(activity.event_at, timeZone)} · {resolveAuthorName(authors, activity.actor_id, profile?.id, profile?.display_name)}</p></li>)}</ol></section></div>
 }
 
 function DueCard({ schedule, today, onAction }: { schedule: TodaySchedule; today: string; onAction: (schedule: TodaySchedule, action: CareAction) => void }) {

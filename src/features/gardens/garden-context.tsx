@@ -2,10 +2,10 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/features/auth/auth-context"
-import type { Garden, Membership, Profile } from "./types"
+import type { Garden, GardenAuthor, Membership, Profile } from "./types"
 
 const STORAGE_KEY = "meu-jardim:preferred-garden-id"
-type GardenValue = { memberships: Membership[]; activeGarden: Garden | null; activeRole: Membership["role"] | null; profile: Profile | null; loading: boolean; error: string | null; selectGarden: (id: string) => void; refresh: () => Promise<void> }
+type GardenValue = { memberships: Membership[]; activeGarden: Garden | null; activeRole: Membership["role"] | null; profile: Profile | null; authors: GardenAuthor[]; loading: boolean; error: string | null; selectGarden: (id: string) => void; refresh: () => Promise<void> }
 const GardenContext = createContext<GardenValue | null>(null)
 
 async function loadBootstrap(userId: string) {
@@ -25,9 +25,10 @@ export function GardenProvider({ children }: { children: ReactNode }) {
   const query = useQuery({ queryKey: ["bootstrap", user?.id], queryFn: () => loadBootstrap(user!.id), enabled: Boolean(user), retry: 1 })
   const memberships = query.data?.memberships ?? []
   const selected = memberships.find((item) => item.garden.id === preferredId) ?? memberships[0] ?? null
+  const authorsQuery = useQuery({ queryKey: ["garden-authors", selected?.garden.id], queryFn: async () => { const { data, error } = await supabase.rpc("list_garden_authors", { target_garden_id: selected!.garden.id }); if (error) throw error; return (data ?? []) as GardenAuthor[] }, enabled: Boolean(selected), retry: 1 })
   useEffect(() => { if (selected && selected.garden.id !== preferredId) { localStorage.setItem(STORAGE_KEY, selected.garden.id) } }, [selected, preferredId])
   function selectGarden(id: string) { if (memberships.some((item) => item.garden.id === id)) { localStorage.setItem(STORAGE_KEY, id); setPreferredId(id) } }
-  const value: GardenValue = { memberships, activeGarden: selected?.garden ?? null, activeRole: selected?.role ?? null, profile: query.data?.profile ?? null, loading: query.isLoading, error: query.error ? "Não foi possível carregar seus jardins." : null, selectGarden, refresh: async () => { await query.refetch() } }
+  const value: GardenValue = { memberships, activeGarden: selected?.garden ?? null, activeRole: selected?.role ?? null, profile: query.data?.profile ?? null, authors: authorsQuery.data ?? [], loading: query.isLoading, error: query.error ? "Não foi possível carregar seus jardins." : null, selectGarden, refresh: async () => { await Promise.all([query.refetch(), authorsQuery.refetch()]) } }
   return <GardenContext.Provider value={value}>{children}</GardenContext.Provider>
 }
 

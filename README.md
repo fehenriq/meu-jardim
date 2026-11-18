@@ -113,6 +113,33 @@ Roteiro de regressão funcional e homologação real de segurança da 04B:
 
 Os testes locais cobrem schemas, timezone, paginação contratual, chaves de cache, fluxo parcial e reconciliação. Eles não comprovam RLS, Storage, timeouts ou concorrência reais no Supabase; o item 10 e as falhas reais continuam pendentes até homologação com sessões autenticadas.
 
+### Gráficos e comparação fotográfica — Entrega 04C
+
+- A área “Ver gráfico e comparar fotos” é carregada por `React.lazy` somente quando aberta. O build da 04B tinha bundle inicial de 759,33 kB; com a 04C ele ficou em 760,12 kB, enquanto o novo chunk assíncrono `growth-insights` possui 10,54 kB. O aviso do bundle inicial acima de 500 kB permanece pendente.
+- O gráfico busca todas as alturas válidas em lotes limitados de 200, sempre filtrados por jardim e planta e ordenados por `observed_at, id`. Registros sem altura não criam pontos. Com menos de duas medições, a interface explica que ainda não há evolução suficiente.
+- O SVG usa espaçamento categórico na ordem cronológica, sem interpolar valores ausentes. Medições do mesmo dia permanecem pontos independentes e são distinguíveis pelo instante completo na tabela acessível em PT-BR e no fuso do jardim.
+- O seletor de comparação consulta `plant_photos` independentemente das páginas de 8 registros do diário. Ele carrega 24 metadados por página, assina somente os paths carregados por 10 minutos e renova as consultas antes da expiração; fotografias antigas são obtidas sob demanda.
+- Somente fotos retornadas pela consulta do jardim e planta atuais podem ser selecionadas. A comparação mostra duas imagens sem corte, lado a lado a partir de telas médias e empilhadas no mobile, com datas derivadas de `taken_at`, do registro ou da criação, nessa ordem.
+- A área trata ausência de dados, seleção incompleta, carregamento, erro e URL indisponível. Não executa upload, alteração ou exclusão. Plantas arquivadas mantêm gráfico e comparação em modo somente leitura.
+- Após um novo registro da 04B, a invalidação comum de `growth` atualiza timeline, gráfico e seletor do mesmo jardim e planta. Caches continuam isolados pelo escopo completo.
+
+**Status da Entrega 04C:** a homologação funcional foi concluída com 12/12 cenários aprovados. O cabeçalho do relatório recebido indicava 11/12, mas a revisão dos resultados individuais confirmou os 12 testes como `APROVADO`, incluindo gráfico completo, medições repetidas, comparação de fotos antigas, fuso horário, isolamento visual, planta arquivada e responsividade.
+
+Roteiro de regressão funcional e homologação real de segurança da 04C:
+
+1. Crie duas medições de altura e confirme o gráfico, os valores em centímetros e a tabela acessível.
+2. Adicione registros sem altura e confirme que nenhum ponto artificial é criado.
+3. Crie medições suficientes para exceder uma página do diário e confirme que o gráfico usa todas, inclusive medições repetidas no mesmo dia.
+4. Compare duas fotografias de registros diferentes e valide datas, seleção por teclado e touch e ausência de cortes inesperados.
+5. Carregue páginas adicionais e compare fotografias antigas que não aparecem na página atual da timeline.
+6. Confira datas próximas à virada do dia no timezone do jardim e a formatação PT-BR.
+7. Valide gráfico, tabela e comparação em 375 px, 390 px e desktop.
+8. Troque de jardim e de planta e confirme ausência de mistura de medições, fotografias ou seleções.
+9. Arquive a planta e confirme gráfico e comparação disponíveis sem qualquer ação de escrita.
+10. Valide zero e uma medição, menos de duas fotos, URL indisponível, loading, erro e recuperação por nova consulta.
+
+Os testes locais validam regras, paginação contratual, cache, fuso e estados de interface, mas não comprovam RLS ou Storage reais. A homologação cross-garden continua pendente até testes com duas sessões autenticadas e sem `service_role`.
+
 ### Contrato de agendas e eventos de cuidados
 
 - `care_schedules` aceita rotinas independentes dos tipos `watering_check`, `fertilizing`, `pruning`, `repotting` e `custom`. Rotinas personalizadas exigem título; não há unicidade artificial por planta ou tipo.
@@ -355,8 +382,8 @@ Execute este roteiro após aplicar as duas migrations em Supabase local ou em um
 
 ## Escopo atual
 
-Implementado: autenticação, perfil provisionado, jardins e memberships seguros, persistência/RLS de plantas, cadastro/listagem/detalhes/edição de plantas, arquivamento/restauração, troca de foto principal privada por signed URL, diário de crescimento com múltiplas fotografias privadas, linha do tempo paginada e recuperação parcial, estrutura/RLS/RPC de cuidados, interface de rotinas/eventos, tela Hoje e Calendário semanal/mensal com dados reais, filtros, detalhes e ações rápidas, seletor de jardim, layout responsivo e infraestrutura Vercel.
+Implementado: autenticação, perfil provisionado, jardins e memberships seguros, persistência/RLS de plantas, cadastro/listagem/detalhes/edição de plantas, arquivamento/restauração, troca de foto principal privada por signed URL, diário de crescimento com múltiplas fotografias privadas, linha do tempo paginada, recuperação parcial, gráfico completo de altura e comparação fotográfica paginada, estrutura/RLS/RPC de cuidados, interface de rotinas/eventos, tela Hoje e Calendário semanal/mensal com dados reais, filtros, detalhes e ações rápidas, seletor de jardim, layout responsivo e infraestrutura Vercel.
 
-Ainda não implementado: comparação fotográfica lado a lado, idempotência transacional da criação do diário, projeção de recorrências futuras, paginação incremental do calendário acima de 200 itens, remoção/limpeza de fotos órfãs, compressão de imagens, convites, gestão de membros, notificações, offline e pagamentos. Permanecem pendentes as homologações reais de RLS/Storage dos Épicos 02 e 04, os testes reais de RLS/RPC/concorrência/idempotência das Entregas 03A–03D, a identificação segura de outros membros no histórico e a otimização do bundle além do lazy loading pontual.
+Ainda não implementado: idempotência transacional da criação do diário, projeção de recorrências futuras, paginação incremental do calendário acima de 200 itens, remoção/limpeza e reconciliação segura de fotos antigas ou órfãs, compressão de imagens, convites, gestão de membros, notificações, offline e pagamentos. Permanecem pendentes as homologações reais de RLS/Storage dos Épicos 02 e 04, os testes reais de RLS/RPC/concorrência/idempotência das Entregas 03A–03D, a identificação segura de outros membros no histórico, a otimização do bundle inicial e a homologação PWA do Épico 05.
 
 O manifest usa diretamente o asset original disponível de 192×192. Para PWA completa, forneça posteriormente um ícone original de 512×512; esta entrega não inventa upscale ou redesenho.

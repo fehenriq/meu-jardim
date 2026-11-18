@@ -19,5 +19,5 @@ export function useClearForeignGrowthQueries(gardenId: string, plantId: string) 
 }
 
 export async function invalidateGrowthTimeline(queryClient: ReturnType<typeof useQueryClient>, gardenId: string, plantId: string) {
-  await queryClient.invalidateQueries({ queryKey: growthKeys.timeline(gardenId, plantId) })
+  await queryClient.invalidateQueries({ queryKey: ["growth", gardenId, plantId] })
 }

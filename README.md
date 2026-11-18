@@ -20,12 +20,100 @@ Preencha `.env.local` somente com a URL e a chave pública/anon do projeto. Nunc
 2. Aplique as migrations em ordem com `supabase db push` em um projeto vinculado ou pelo SQL Editor:
    - `supabase/migrations/202611170001_foundation.sql`
    - `supabase/migrations/202611180001_plants_and_private_photos.sql`
+   - `supabase/migrations/202611190001_care_schedules_and_events.sql`
 3. Em **Authentication > URL Configuration**, configure **Site URL** com a URL local ou de produção.
 4. Adicione em **Redirect URLs**: `http://localhost:5173/**` e `https://SEU-DOMINIO-VERCEL/**`.
 5. Em **Authentication > Providers > Email**, decida se confirmação de e-mail será obrigatória. O frontend respeita ambos os modos.
 6. Para um ambiente familiar fechado, desabilite novos cadastros nas configurações reais de Auth quando terminar os testes. Esconder o botão no frontend não bloqueia a API de cadastro. Convites seguros ficam para etapa futura.
 
 A fundação cria `profiles`, `gardens`, `garden_members`, índices, triggers, RLS e a RPC transacional `create_garden`. A migration incremental cria `plants`, suas policies e o bucket privado `plant-photos`; ela não altera as tabelas ou funções da fundação.
+
+### Contrato de agendas e eventos de cuidados
+
+- `care_schedules` aceita rotinas independentes dos tipos `watering_check`, `fertilizing`, `pruning`, `repotting` e `custom`. Rotinas personalizadas exigem título; não há unicidade artificial por planta ou tipo.
+- `settings.moisture_recheck_days` é inteiro opcional entre 1 e 30, com padrão operacional de 2 dias. Outras chaves são rejeitadas nesta entrega.
+- `care_events` é histórico imutável. O cliente recebe somente leitura; inserção ocorre pela RPC `record_care_action` e não há `DELETE` direto de eventos ou agendas.
+- A view `pending_care_schedules`, com `security_invoker`, expõe somente agendas ativas de plantas não arquivadas. Agendas e eventos de plantas arquivadas permanecem preservados.
+- Vínculos compostos garantem que planta, agenda e evento pertençam ao mesmo jardim. Autoria e jardim são derivados no banco.
+- O `request_id` é idempotente por jardim e ator. Locks em planta e agenda serializam ações concorrentes sem perder eventos distintos.
+
+Assinatura da RPC:
+
+```sql
+public.record_care_action(
+  p_plant_id uuid,
+  p_schedule_id uuid,
+  p_action text,
+  p_request_id uuid,
+  p_event_at timestamptz default now(),
+  p_note text default null,
+  p_defer_days integer default null
+) returns public.care_events
+```
+
+Semântica das ações:
+
+- `watered`: em agenda `watering_check`, registra rega real e agenda nova verificação pela data civil do jardim mais `interval_days`.
+- `moisture_checked`: registra somente inspeção de solo úmido e usa `moisture_recheck_days`, sem criar evento de rega.
+- `deferred`: exige `p_defer_days` entre 1 e 365, registra adiamento e não conta como cuidado realizado.
+- `care_completed`: registra a execução de cuidados que não sejam `watering_check` e aplica `interval_days`.
+- Sem `p_schedule_id`, somente `watered` é permitido. A rega espontânea é registrada sem escolher ou recalcular qualquer agenda existente.
+- `p_event_at` permanece `timestamptz`; `next_due_date` é calculada com `gardens.timezone` e armazenada como data civil.
+
+### Aplicação manual e validação da Entrega 03A
+
+Antes de aplicar, confirme conscientemente projeto e usuário, faça backup e execute:
+
+```sql
+select current_database(), current_user;
+select to_regclass('public.plants'), to_regclass('public.care_schedules'), to_regclass('public.care_events');
+select count(*) from public.plants;
+select conname from pg_constraint where conname = 'plants_id_garden_unique';
+```
+
+O resultado esperado antes da primeira aplicação é `plants` existente, tabelas de cuidados ausentes e constraint composta ausente. Aplique manualmente `supabase/migrations/202611190001_care_schedules_and_events.sql` pelo SQL Editor ou, após vincular e revisar o destino, com `supabase db push`. Esta migration não foi executada automaticamente.
+
+**Status em 19/11/2026:** a migration foi aplicada manualmente no Supabase. As verificações estruturais confirmaram RLS ativo em `care_schedules` e `care_events`; políticas `SELECT`, `INSERT` e `UPDATE` em `care_schedules`; política `SELECT` em `care_events`; e `EXECUTE` da RPC `record_care_action` para `authenticated`. Permanecem pendentes os testes reais de isolamento RLS com duas sessões, concorrência e idempotência da 03A, além das pendências de RLS/Storage do Épico 02.
+
+Após aplicar, valide:
+
+```sql
+select to_regclass('public.care_schedules'), to_regclass('public.care_events'), to_regclass('public.pending_care_schedules');
+select relname, relrowsecurity from pg_class where relname in ('care_schedules', 'care_events');
+select routine_name, security_type from information_schema.routines where routine_schema = 'public' and routine_name = 'record_care_action';
+select grantee, privilege_type from information_schema.routine_privileges where routine_schema = 'public' and routine_name = 'record_care_action' order by grantee, privilege_type;
+select grantee, table_name, privilege_type from information_schema.role_table_grants where table_schema = 'public' and table_name in ('care_schedules', 'care_events', 'pending_care_schedules') order by table_name, grantee, privilege_type;
+```
+
+Os testes automatizados desta entrega são contratuais e não provam RLS, locks ou execução transacional no PostgreSQL. A homologação real de RLS/RPC com duas sessões autenticadas continua pendente: deve cobrir isolamento entre jardins, vínculos incompatíveis, autoria forjada, agenda inativa, planta arquivada, timezone e virada do dia, retry com o mesmo `request_id` e duas ações simultâneas distintas.
+
+Roteiro reproduzível para homologação, usando IDs reais de usuários, jardins, plantas e agendas de um projeto exclusivo de testes:
+
+```sql
+begin;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', 'USER_A_UUID', true);
+
+select * from public.record_care_action(
+  'PLANT_A_UUID', 'WATERING_SCHEDULE_A_UUID', 'watered',
+  'REQUEST_UUID_1', '2026-11-19T02:30:00Z', 'Rega real', null
+);
+select * from public.record_care_action(
+  'PLANT_A_UUID', 'WATERING_SCHEDULE_A_UUID', 'moisture_checked',
+  'REQUEST_UUID_2', '2026-11-19T02:35:00Z', 'Solo ainda úmido', null
+);
+select * from public.record_care_action(
+  'PLANT_A_UUID', 'WATERING_SCHEDULE_A_UUID', 'deferred',
+  'REQUEST_UUID_3', '2026-11-19T02:40:00Z', 'Verificar depois', 3
+);
+select * from public.record_care_action(
+  'PLANT_A_UUID', null, 'watered',
+  'REQUEST_UUID_4', '2026-11-19T02:45:00Z', 'Rega espontânea', null
+);
+rollback;
+```
+
+Repita a primeira chamada com o mesmo `request_id` e confirme o mesmo `id` de evento sem nova linha. Em uma segunda sessão com `USER_B_UUID`, tente usar IDs do Jardim A e confirme negação. Teste também agenda de outro jardim, agenda inativa, planta arquivada, `defer_days` inválido e ações incompatíveis. Para concorrência, mantenha duas transações autenticadas como membros do mesmo jardim, execute ações com `request_id` distintos na mesma agenda e confirme dois eventos preservados e atualização serializada. Compare `event_at`, `next_due_date` e o timezone do jardim em casos imediatamente antes e depois da meia-noite local. Use `rollback` durante a preparação e não use `service_role` ou sessão `postgres` para afirmar que RLS foi validada.
 
 ### Contrato de plantas e fotos
 
@@ -105,8 +193,8 @@ Execute este roteiro após aplicar as duas migrations em Supabase local ou em um
 
 ## Escopo atual
 
-Implementado: autenticação, perfil provisionado, jardins e memberships seguros, persistência/RLS de plantas, cadastro/listagem/detalhes/edição de plantas, arquivamento/restauração, troca de foto principal privada por signed URL, seletor de jardim, indicador real de plantas ativas, páginas honestas de Calendário, layout responsivo e infraestrutura Vercel.
+Implementado: autenticação, perfil provisionado, jardins e memberships seguros, persistência/RLS de plantas, cadastro/listagem/detalhes/edição de plantas, arquivamento/restauração, troca de foto principal privada por signed URL, estrutura/RLS/RPC de agendas e eventos de cuidados, seletor de jardim, indicador real de plantas ativas, páginas honestas de Calendário, layout responsivo e infraestrutura Vercel.
 
-Ainda não implementado: remoção/limpeza de fotos órfãs, compressão de imagens, cuidados, diário fotográfico, calendário funcional, convites, gestão de membros, notificações, offline e pagamentos. Os testes reais de isolamento RLS/Storage entre dois usuários continuam pendentes.
+Ainda não implementado: interface e hooks de cuidados, remoção/limpeza de fotos órfãs, compressão de imagens, diário fotográfico, calendário funcional, convites, gestão de membros, notificações, offline e pagamentos. Permanecem pendentes as homologações reais de RLS/Storage do Épico 02 e de RLS/RPC da Entrega 03A, além da otimização do bundle.
 
 O manifest usa diretamente o asset original disponível de 192×192. Para PWA completa, forneça posteriormente um ícone original de 512×512; esta entrega não inventa upscale ou redesenho.

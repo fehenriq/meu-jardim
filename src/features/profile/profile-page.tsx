@@ -10,11 +10,12 @@ import { useGarden } from "@/features/gardens/garden-context"
 import { supabase } from "@/lib/supabase"
 import { signAvatar, updateGarden, updateProfile, uploadAvatar } from "./api"
 import { gardenSettingsSchema, profileSchema, validateAvatar } from "./schema"
+import { InvitesSection } from "@/features/invites/invites-section"
 
 export function ProfilePage() {
   const { user } = useAuth()
   const { profile, activeGarden, activeRole, refresh } = useGarden()
-  return <ProfileEditor key={`${profile?.display_name}:${profile?.avatar_path}:${activeGarden?.id}:${activeGarden?.name}:${activeGarden?.timezone}`} user={user} profile={profile} activeGarden={activeGarden} activeRole={activeRole} refresh={refresh} />
+  return <><ProfileEditor key={`${profile?.display_name}:${profile?.avatar_path}:${activeGarden?.id}:${activeGarden?.name}:${activeGarden?.timezone}`} user={user} profile={profile} activeGarden={activeGarden} activeRole={activeRole} refresh={refresh} /><InvitesSection /></>
 }
 
 function ProfileEditor({ user, profile, activeGarden, activeRole, refresh }: { user: ReturnType<typeof useAuth>["user"]; profile: ReturnType<typeof useGarden>["profile"]; activeGarden: ReturnType<typeof useGarden>["activeGarden"]; activeRole: ReturnType<typeof useGarden>["activeRole"]; refresh: ReturnType<typeof useGarden>["refresh"] }) {

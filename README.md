@@ -318,7 +318,7 @@ Testes locais e contratos não comprovam RLS, locks, concorrência ou idempotên
 
 ### Perfil e configurações da Entrega 05A
 
-A Entrega 05A adiciona edição do nome público e avatar privado, leitura do e-mail, edição administrativa do nome e timezone IANA do jardim e a RPC `list_garden_authors`, que retorna somente `user_id`, nome público e caminho do avatar de membros do mesmo jardim. A migration incremental `202611200001_profile_and_garden_settings.sql` foi aplicada manualmente no Supabase e teve suas verificações estruturais aprovadas. A homologação funcional da Entrega 05A permanece pendente.
+A Entrega 05A adiciona edição do nome público e avatar privado, leitura do e-mail, edição administrativa do nome e timezone IANA do jardim e a RPC `list_garden_authors`, que retorna somente `user_id`, nome público e caminho do avatar de membros do mesmo jardim. A migration incremental `202611200001_profile_and_garden_settings.sql` foi aplicada manualmente no Supabase e teve suas verificações estruturais aprovadas. A homologação funcional da Entrega 05A foi aprovada com 12/12 verificações; os testes reais de RLS/Storage permanecem pendentes.
 
 - O bucket `avatars` permanece privado, aceita JPEG, PNG e WebP até 5 MiB e não concede `DELETE` ao cliente. O banco armazena somente o caminho; signed URLs de 10 minutos não são persistidas.
 - O perfil só pode alterar suas próprias colunas já autorizadas. Jardins continuam protegidos por `gardens_update_admin`; a validação de timezone ocorre no cliente e no PostgreSQL.
@@ -336,6 +336,29 @@ Roteiro de homologação funcional e de segurança real, ainda pendente:
 6. Teste falha após upload e antes da associação do avatar; o objeto pode exigir reconciliação, pois não há `DELETE` amplo. Revogue também sessões e considere o risco residual de signed URLs emitidas antes da revogação.
 
 Permanecem pendentes a homologação real de RLS/Storage entre jardins, concorrência e idempotência das RPCs, idempotência transacional do crescimento, reconciliação de fotografias e avatares órfãos, paginação, otimização do bundle, PWA, backups e a avaliação dos limites do plano gratuito.
+
+### Convites familiares da Entrega 05B
+
+A migration incremental `202611200002_garden_invites.sql` cria convites familiares de uso único e foi aplicada manualmente no Supabase. As verificações estruturais confirmaram RLS ativo em `garden_invites`, a política administrativa de `SELECT`, as RPCs de criação, aceitação e revogação disponíveis para `authenticated` e indisponíveis para `anon`, e a RPC de inspeção disponível para `anon` e `authenticated`. A homologação funcional e os testes reais de segurança, isolamento e concorrência continuam pendentes.
+
+- Somente administradores criam, listam e revogam convites do jardim ativo. O papel do convidado é sempre `member` e não pode ser escolhido pelo cliente.
+- O token possui 32 bytes aleatórios, expira em sete dias e é retornado em texto puro somente pela criação. O banco persiste apenas SHA-256; listagens nunca retornam token ou hash.
+- O aceite autenticado bloqueia o convite com `FOR UPDATE`, valida expiração, revogação e uso, e cria a membership na mesma transação. Repetição pelo mesmo usuário é idempotente; outro usuário recebe falha neutra.
+- O token é removido da URL imediatamente e mantido apenas em `sessionStorage` durante login ou cadastro. A aplicação usa `Referrer-Policy: no-referrer`, não registra o segredo e gera links a partir da origem efetiva.
+- Usuário que já pertence ao jardim recebe retorno seguro sem consumir o convite. Após aceite, o bootstrap e os autores são recarregados e o novo jardim é selecionado.
+
+Roteiro manual pendente para Supabase de homologação:
+
+1. Aplique a migration revisada e use três sessões: administrador do Jardim A, membro de A e usuário externo com Jardim B.
+2. Confirme que apenas o administrador cria/lista/revoga, que a listagem não contém token/hash e que links usam a origem correta.
+3. Aceite como usuário externo e confirme membership `member`, seleção imediata do Jardim A e ausência de acesso administrativo.
+4. Teste convite expirado, revogado, inválido e já utilizado; nenhum deles deve criar membership ou revelar o nome do jardim.
+5. Aceite simultaneamente o mesmo convite em duas sessões e confirme uma única membership e um único `accepted_by`.
+6. Repita o aceite pelo mesmo usuário e teste usuário que já era membro; confirme comportamento idempotente sem elevação de papel.
+7. Faça login e cadastro pelo link, incluindo confirmação de e-mail, recarga, falha de rede e reabertura quando a sessão do navegador for perdida.
+8. Tente consultar e revogar convites do outro jardim pela API, sem `service_role`; todas as operações devem ser vazias ou negadas.
+
+Testes contratuais não comprovam RLS, locks ou concorrência reais. Permanecem pendentes a homologação funcional da 05B, os testes reais acima e todos os débitos anteriores de RLS/Storage cross-garden, concorrência e idempotência das RPCs, idempotência do diário, limpeza de fotos órfãs, paginação, bundle, PWA e backups.
 
 ## Deploy na Vercel
 
@@ -405,6 +428,6 @@ Execute este roteiro após aplicar as duas migrations em Supabase local ou em um
 
 Implementado: autenticação, perfil provisionado, jardins e memberships seguros, persistência/RLS de plantas, cadastro/listagem/detalhes/edição de plantas, arquivamento/restauração, troca de foto principal privada por signed URL, diário de crescimento com múltiplas fotografias privadas, linha do tempo paginada, recuperação parcial, gráfico completo de altura e comparação fotográfica paginada, estrutura/RLS/RPC de cuidados, interface de rotinas/eventos, tela Hoje e Calendário semanal/mensal com dados reais, filtros, detalhes e ações rápidas, seletor de jardim, layout responsivo e infraestrutura Vercel.
 
-Ainda não implementado: idempotência transacional da criação do diário, projeção de recorrências futuras, paginação incremental do calendário acima de 200 itens, remoção/limpeza e reconciliação segura de fotos antigas ou órfãs, compressão de imagens, convites, gestão de membros, notificações, offline e pagamentos. Permanecem pendentes as homologações reais de RLS/Storage dos Épicos 02 e 04, os testes reais de RLS/RPC/concorrência/idempotência das Entregas 03A–03D, a identificação segura de outros membros no histórico, a otimização do bundle inicial e a homologação PWA do Épico 05.
+Ainda não implementado: idempotência transacional da criação do diário, projeção de recorrências futuras, paginação incremental do calendário acima de 200 itens, remoção/limpeza e reconciliação segura de fotos antigas ou órfãs, compressão de imagens, gestão de membros, notificações, offline e pagamentos. Permanecem pendentes as homologações reais de RLS/Storage dos Épicos 02 e 04, os testes reais de RLS/RPC/concorrência/idempotência das Entregas 03A–03D, a identificação segura de outros membros no histórico, a otimização do bundle inicial e a homologação PWA do Épico 05.
 
 O manifest usa diretamente o asset original disponível de 192×192. Para PWA completa, forneça posteriormente um ícone original de 512×512; esta entrega não inventa upscale ou redesenho.

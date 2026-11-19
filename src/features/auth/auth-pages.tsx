@@ -10,6 +10,9 @@ import { Label } from "@/components/ui/label"
 import { forgotSchema, loginSchema, registerSchema, resetSchema, type LoginValues, type RegisterValues } from "./schemas"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "./auth-context"
+import { INVITE_TOKEN_KEY } from "@/features/invites/rules"
+
+function afterAuthPath() { return sessionStorage.getItem(INVITE_TOKEN_KEY) ? "/invite" : "/app/today" }
 
 function Field({ id, label, error, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { id: string; label: string; error?: string }) {
   return <div className="space-y-2"><Label htmlFor={id}>{label}</Label><Input id={id} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} {...props} />{error && <p id={`${id}-error`} className="text-sm text-accent">{error}</p>}</div>
@@ -20,15 +23,15 @@ function AuthCard({ title, children }: { title: string; children: React.ReactNod
 export function LoginPage() {
   const { user } = useAuth(); const navigate = useNavigate(); const [message, setMessage] = useState("")
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginValues>({ resolver: zodResolver(loginSchema) })
-  if (user) return <Navigate to="/app/today" replace />
-  async function submit(values: LoginValues) { setMessage(""); const { error } = await supabase.auth.signInWithPassword(values); if (error) setMessage("E-mail ou senha inválidos."); else navigate("/app/today", { replace: true }) }
+  if (user) return <Navigate to={afterAuthPath()} replace />
+  async function submit(values: LoginValues) { setMessage(""); const { error } = await supabase.auth.signInWithPassword(values); if (error) setMessage("E-mail ou senha inválidos."); else navigate(afterAuthPath(), { replace: true }) }
   return <AuthCard title="Entrar"><form onSubmit={handleSubmit(submit)} className="space-y-5"><Field id="email" label="E-mail" type="email" autoComplete="email" error={errors.email?.message} {...register("email")} /><Field id="password" label="Senha" type="password" autoComplete="current-password" error={errors.password?.message} {...register("password")} />{message && <Alert>{message}</Alert>}<Button className="w-full" disabled={isSubmitting}>{isSubmitting ? "Entrando…" : "Entrar"}</Button><div className="flex flex-col items-center gap-4 pt-3 text-sm"><Link to="/register" className="text-primary hover:underline">Ainda não tenho conta</Link><Link to="/forgot-password" className="text-muted-foreground hover:text-primary">Esqueci minha senha</Link></div></form></AuthCard>
 }
 
 export function RegisterPage() {
   const [message, setMessage] = useState(""); const [success, setSuccess] = useState(false); const navigate = useNavigate()
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<RegisterValues>({ resolver: zodResolver(registerSchema) })
-  async function submit(values: RegisterValues) { setMessage(""); const { data, error } = await supabase.auth.signUp({ email: values.email, password: values.password, options: { data: { display_name: values.name.trim() }, emailRedirectTo: `${window.location.origin}/app/today` } }); if (error) { setMessage(error.message.includes("already") ? "Não foi possível criar a conta. Tente entrar ou recuperar sua senha." : "Não foi possível criar a conta agora."); return } if (data.session) navigate("/app/today", { replace: true }); else setSuccess(true) }
+  async function submit(values: RegisterValues) { setMessage(""); const { data, error } = await supabase.auth.signUp({ email: values.email, password: values.password, options: { data: { display_name: values.name.trim() }, emailRedirectTo: `${window.location.origin}${afterAuthPath()}` } }); if (error) { setMessage(error.message.includes("already") ? "Não foi possível criar a conta. Tente entrar ou recuperar sua senha." : "Não foi possível criar a conta agora."); return } if (data.session) navigate(afterAuthPath(), { replace: true }); else setSuccess(true) }
   if (success) return <AuthCard title="Confira seu e-mail"><Alert>Enviamos um link de confirmação. Confirme o cadastro antes de entrar.</Alert><Button asChild className="mt-6 w-full"><Link to="/login">Voltar para entrar</Link></Button></AuthCard>
   return <AuthCard title="Criar conta"><form onSubmit={handleSubmit(submit)} className="space-y-5"><Field id="name" label="Seu nome" autoComplete="name" error={errors.name?.message} {...register("name")} /><Field id="email" label="E-mail" type="email" autoComplete="email" error={errors.email?.message} {...register("email")} /><Field id="password" label="Senha" type="password" autoComplete="new-password" error={errors.password?.message} {...register("password")} />{message && <Alert>{message}</Alert>}<Button className="w-full" disabled={isSubmitting}>{isSubmitting ? "Criando…" : "Criar conta"}</Button><div className="pt-3 text-center text-sm"><Link to="/login" className="text-primary hover:underline">Já tenho conta</Link></div></form></AuthCard>
 }

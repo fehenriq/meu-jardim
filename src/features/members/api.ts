@@ -1,0 +1,6 @@
+import { supabase } from "@/lib/supabase"
+import type { GardenMember, MemberAction } from "./types"
+
+export async function listMembers(gardenId: string) { const { data, error } = await supabase.rpc("list_garden_members", { target_garden_id: gardenId }); if (error) throw error; const rows = (data ?? []) as Omit<GardenMember, "avatar_url">[]; const paths = rows.flatMap((row) => row.avatar_path ? [row.avatar_path] : []); const signed = paths.length ? await supabase.storage.from("avatars").createSignedUrls(paths, 10 * 60) : { data: [], error: null }; const urls = new Map(paths.map((path, index) => [path, signed.error || signed.data[index]?.error ? null : signed.data[index]?.signedUrl ?? null])); return rows.map((row) => ({ ...row, avatar_url: row.avatar_path ? urls.get(row.avatar_path) ?? null : null })) }
+export async function manageMember(gardenId: string, userId: string, action: MemberAction) { const { error } = await supabase.rpc("manage_garden_member", { target_garden_id: gardenId, target_user_id: userId, requested_action: action }); if (error) throw error }
+export async function leaveGarden(gardenId: string) { const { error } = await supabase.rpc("leave_garden", { target_garden_id: gardenId }); if (error) throw error }

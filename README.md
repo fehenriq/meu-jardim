@@ -358,7 +358,33 @@ Roteiro manual pendente para Supabase de homologação:
 7. Faça login e cadastro pelo link, incluindo confirmação de e-mail, recarga, falha de rede e reabertura quando a sessão do navegador for perdida.
 8. Tente consultar e revogar convites do outro jardim pela API, sem `service_role`; todas as operações devem ser vazias ou negadas.
 
-Testes contratuais não comprovam RLS, locks ou concorrência reais. Permanecem pendentes a homologação funcional da 05B, os testes reais acima e todos os débitos anteriores de RLS/Storage cross-garden, concorrência e idempotência das RPCs, idempotência do diário, limpeza de fotos órfãs, paginação, bundle, PWA e backups.
+**Status da Entrega 05B:** homologação funcional aprovada com 12/12 verificações. Testes contratuais não comprovam RLS, locks ou concorrência reais; os testes reais acima e todos os débitos anteriores de RLS/Storage cross-garden, concorrência e idempotência das RPCs, idempotência do diário, limpeza de fotos órfãs, paginação, bundle, PWA e backups permanecem pendentes.
+
+### Gestão de membros da Entrega 05C
+
+A migration incremental `202611200003_garden_member_management.sql` adiciona RPCs de escopo mínimo para listar membros, promover/rebaixar, remover e sair de um jardim. Ela foi aplicada manualmente no Supabase e passou nas verificações estruturais das RPCs, permissões `EXECUTE` para `authenticated`, revogação de acesso público e locks de proteção do último administrador.
+
+- `list_garden_members` retorna somente ID, nome público, avatar, papel e data de entrada quando o solicitante ainda pertence ao jardim; nenhum e-mail é exposto.
+- `manage_garden_member` aceita apenas `promote`, `demote` ou `remove`, exige administrador e não permite agir sobre o próprio usuário. A saída própria usa exclusivamente `leave_garden`.
+- As mutações bloqueiam a linha de `gardens` antes de conferir e alterar memberships. Esse lock serializa remoções, rebaixamentos e saídas concorrentes; o jardim nunca pode ficar sem administrador.
+- Nenhum `UPDATE` ou `DELETE` direto em `garden_members` foi concedido ao cliente. Perfis, cuidados, crescimento, fotografias e autoria histórica não são excluídos.
+- Após remoção ou saída, caches do jardim são removidos e o bootstrap é recarregado. URLs assinadas emitidas anteriormente podem permanecer válidas até sua expiração.
+
+Roteiro de homologação real pendente:
+
+1. Aplique a migration revisada em homologação e abra sessões para dois administradores, um membro e um usuário de outro jardim.
+2. Confirme listagem autorizada sem e-mail e ausência de controles administrativos para o membro comum.
+3. Promova e rebaixe membros; valide o papel no banco e tente chamar a RPC administrativa como membro comum.
+4. Remova um membro e confirme perda imediata de consultas, RPCs, autores e novas signed URLs, preservando todo o histórico.
+5. Saia voluntariamente como membro e como administrador quando houver outro admin; confirme seleção segura de outro jardim ou fluxo sem jardim.
+6. Tente remover, rebaixar e fazer sair o último administrador; todas as operações devem falhar.
+7. Em duas sessões, tente simultaneamente remover/rebaixar/sair com os últimos administradores e confirme que o lock preserva ao menos um admin.
+8. Use IDs de outro jardim em todas as RPCs e confirme respostas negadas e neutras, sem enumeração.
+9. Valide confirmações, teclado e layout em 375 px, 390 px e desktop.
+
+**Status da Entrega 05C:** homologação funcional aprovada com 12/12 verificações, incluindo promoção, rebaixamento, remoção, saída voluntária, proteção do último administrador, isolamento visual entre jardins, preservação do histórico e responsividade mobile. Com as Entregas 05A, 05B e 05C homologadas, o Épico 05 está funcionalmente aprovado.
+
+Testes locais são contratuais e não comprovam RLS, revogação de acesso ou concorrência reais. Permanecem pendentes os testes reais de segurança e concorrência da 05C e todos os débitos técnicos e de segurança anteriores, incluindo a homologação PWA separada da aprovação funcional do épico.
 
 ## Deploy na Vercel
 
@@ -428,6 +454,6 @@ Execute este roteiro após aplicar as duas migrations em Supabase local ou em um
 
 Implementado: autenticação, perfil provisionado, jardins e memberships seguros, persistência/RLS de plantas, cadastro/listagem/detalhes/edição de plantas, arquivamento/restauração, troca de foto principal privada por signed URL, diário de crescimento com múltiplas fotografias privadas, linha do tempo paginada, recuperação parcial, gráfico completo de altura e comparação fotográfica paginada, estrutura/RLS/RPC de cuidados, interface de rotinas/eventos, tela Hoje e Calendário semanal/mensal com dados reais, filtros, detalhes e ações rápidas, seletor de jardim, layout responsivo e infraestrutura Vercel.
 
-Ainda não implementado: idempotência transacional da criação do diário, projeção de recorrências futuras, paginação incremental do calendário acima de 200 itens, remoção/limpeza e reconciliação segura de fotos antigas ou órfãs, compressão de imagens, gestão de membros, notificações, offline e pagamentos. Permanecem pendentes as homologações reais de RLS/Storage dos Épicos 02 e 04, os testes reais de RLS/RPC/concorrência/idempotência das Entregas 03A–03D, a identificação segura de outros membros no histórico, a otimização do bundle inicial e a homologação PWA do Épico 05.
+Ainda não implementado: idempotência transacional da criação do diário, projeção de recorrências futuras, paginação incremental do calendário acima de 200 itens, remoção/limpeza e reconciliação segura de fotos antigas ou órfãs, compressão de imagens, notificações, offline e pagamentos. Permanecem pendentes as homologações reais de RLS/Storage dos Épicos 02 e 04, os testes reais de RLS/RPC/concorrência/idempotência das Entregas 03A–03D, a identificação segura de outros membros no histórico, a otimização do bundle inicial e a homologação PWA do Épico 05.
 
 O manifest usa diretamente o asset original disponível de 192×192. Para PWA completa, forneça posteriormente um ícone original de 512×512; esta entrega não inventa upscale ou redesenho.

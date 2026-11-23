@@ -412,6 +412,20 @@ A primeira fase da 06A.2 prepara a homologação dinâmica de RLS, RPCs, Storage
 
 **Homologação da configuração dos ambientes:** aprovada com 6/6 verificações, incluindo preservação do ambiente de produção, carregamento isolado de `.env.homolog.local`, bloqueio de URL divergente, ausência de fallback silencioso, identificação visual e inicialização por `dev:homolog`. Essa aprovação não executa nem substitui os 71 cenários de isolamento multi-tenant.
 
+#### Executor local de segurança 06A.2
+
+O executor reutilizável está documentado em `docs/audits/06A2-security-executor.md`. O modo padrão valida a configuração exclusiva de homologação e lista os 71 casos sem rede, sem alterar o relatório de resultados:
+
+```powershell
+npm.cmd run test:security:homolog
+npm.cmd run test:security:homolog -- --group=plants
+npm.cmd run test:security:homolog -- --case=PL-01
+```
+
+O catálogo classifica 22 casos como automatizados, 45 como híbridos e 4 como manuais. A classificação indica apenas a estratégia futura; todos continuam **NÃO EXECUTADOS**. O transporte remoto permanece bloqueado nesta entrega, mesmo depois dos portões de alvo, autorização, janela e fixtures. O procedimento de inventário estrutural somente leitura está em `docs/audits/06A2-catalog-readonly.sql`; histórico de migrations e equivalência de catálogo não comprovam isolamento comportamental.
+
+Arquivos operacionais `.security/homolog-fixtures.local.json` e `.security/homolog-authorization.local.json` são ignorados pelo Git. Eles não podem conter senha, JWT, refresh token, chave, token/link de convite ou signed URL. Nenhuma fixture é criada ou limpa automaticamente.
+
 Testes contratuais locais não comprovam RLS, Storage, revogação ou isolamento no PostgreSQL real. SEC-06A-004 permanece não verificado; SEC-06A-002/003/005/007/009 e os demais débitos continuam abertos. O status permanece **NO-GO para abertura pública como SaaS**.
 
 ### Gestão de membros da Entrega 05C

@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
+    "test:security:homolog": "node --experimental-strip-types security/homolog/cli.ts",
     "test:watch": "vitest"
   },
   "dependencies": {

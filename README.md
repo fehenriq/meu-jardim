@@ -14,6 +14,19 @@ npm.cmd run dev
 
 Preencha `.env.local` somente com a URL e a chave pública/anon do projeto. Nunca coloque `service_role` no frontend.
 
+### Ambiente local de homologação
+
+O ambiente de produção continua usando `.env.local` e `npm.cmd run dev`. Para iniciar a homologação da Entrega 06A.2, crie o arquivo local específico e execute o modo dedicado:
+
+```powershell
+Copy-Item .env.homolog.example .env.homolog.local
+npm.cmd run dev:homolog
+```
+
+Preencha `.env.homolog.local` com `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` do projeto `meu-jardim-homolog`. O arquivo é ignorado pelo Git e deve conter somente a URL e a chave pública/anon; credenciais privilegiadas não pertencem ao frontend.
+
+O modo `homolog` exige esse arquivo e as duas variáveis. Ele lê os valores diretamente de `.env.homolog.local`, sem fallback para `.env.local`, e encerra a inicialização se a URL HTTPS não corresponder ao Project ID autorizado `gmbwavdzfljvfdvnroiz`. Uma identificação discreta `HOMOLOGAÇÃO` permanece visível na interface enquanto esse modo estiver ativo.
+
 ## Configurar o Supabase
 
 1. Crie ou escolha conscientemente um projeto Supabase. Não aplique a migration sem revisar o destino.
@@ -22,6 +35,9 @@ Preencha `.env.local` somente com a URL e a chave pública/anon do projeto. Nunc
    - `supabase/migrations/202611180001_plants_and_private_photos.sql`
    - `supabase/migrations/202611190001_care_schedules_and_events.sql`
    - `supabase/migrations/202611190002_growth_diary.sql`
+   - `supabase/migrations/202611200001_profile_and_garden_settings.sql`
+   - `supabase/migrations/202611200002_garden_invites.sql`
+   - `supabase/migrations/202611200003_garden_member_management.sql`
 3. Em **Authentication > URL Configuration**, configure **Site URL** com a URL local ou de produção.
 4. Adicione em **Redirect URLs**: `http://localhost:5173/**` e `https://SEU-DOMINIO-VERCEL/**`.
 5. Em **Authentication > Providers > Email**, decida se confirmação de e-mail será obrigatória. O frontend respeita ambos os modos.
@@ -390,9 +406,11 @@ Esta alteração trata o SEC-06A-001. Permanecem abertos os demais achados do re
 
 A primeira fase da 06A.2 prepara a homologação dinâmica de RLS, RPCs, Storage, revogação e isolamento multi-tenant. O plano reproduzível está em `docs/audits/06A2-isolation-test-plan.md` e o registro inicialmente vazio em `docs/audits/06A2-isolation-results.md`. A matriz usa três contas dedicadas A/B/C, dois jardins exclusivos, dados sintéticos com prefixo e allowlist obrigatória, clientes independentes e evidências sanitizadas.
 
-**Estado da Entrega 06A.2:** preparação local concluída; execução remota **NÃO EXECUTADA** e dependente de autorização explícita, confirmação de projeto Supabase de homologação e criação manual de fixtures descartáveis. Nenhuma conta, dado, migration, policy, grant ou configuração remota foi alterada nesta fase.
+**Estado da Entrega 06A.2:** o projeto exclusivo `meu-jardim-homolog` foi confirmado para a homologação. Conforme o registro da aplicação via Supabase CLI, as sete migrations estão aplicadas, a listagem local/remota corresponde em 7/7 e o dry-run não aponta migration pendente. Os 71 cenários de isolamento permanecem **NÃO EXECUTADOS** e dependem de autorização posterior e da criação manual de fixtures descartáveis. Nenhuma conta, fixture, migration, policy, grant ou configuração remota foi alterada nesta preparação local.
 
-**Validação local da preparação 06A.2:** lint e typecheck aprovados, 127/127 testes em 30 arquivos aprovados e build de produção concluído. Permanece o aviso conhecido do chunk principal acima de 500 kB.
+**Validação local da preparação 06A.2:** lint e typecheck aprovados, 131/131 testes em 31 arquivos aprovados e build de produção concluído. Permanece o aviso conhecido do chunk principal acima de 500 kB.
+
+**Homologação da configuração dos ambientes:** aprovada com 6/6 verificações, incluindo preservação do ambiente de produção, carregamento isolado de `.env.homolog.local`, bloqueio de URL divergente, ausência de fallback silencioso, identificação visual e inicialização por `dev:homolog`. Essa aprovação não executa nem substitui os 71 cenários de isolamento multi-tenant.
 
 Testes contratuais locais não comprovam RLS, Storage, revogação ou isolamento no PostgreSQL real. SEC-06A-004 permanece não verificado; SEC-06A-002/003/005/007/009 e os demais débitos continuam abertos. O status permanece **NO-GO para abertura pública como SaaS**.
 

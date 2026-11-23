@@ -370,22 +370,21 @@ O botão de WhatsApp que montava o convite na query de `wa.me` foi substituído 
 
 Tokens válidos permanecem na sessão da aba para permitir inspeção e aceite depois do login. Tokens inválidos, expirados, revogados, usados ou aceitos são descartados. `sessionStorage` não atravessa outro navegador e não oferece recuperação confiável quando a confirmação de e-mail abre um contexto diferente; nessa situação, a interface orienta a reabrir o link original, sem persistir o segredo em `localStorage` ou cookie.
 
-Homologação posterior em ambiente com Node 24 LTS:
+Homologação técnica posterior:
 
-1. Execute `npm.cmd run lint`, `npm.cmd run typecheck`, `npm.cmd test` e `npm.cmd run build`.
-2. Confirme que um novo link contém o token apenas após `#`, que a primeira requisição observada não contém o segredo e que a URL fica limpa logo após a abertura.
-3. Teste o link legado e confirme que `?token=` desaparece sem ser reemitido em navegação, redirect, erro, log ou telemetria.
-4. Valide inspeção e aceite após login, cadastro sem confirmação e cadastro com confirmação de e-mail na mesma aba.
-5. Abra a confirmação em outra aba e em outro navegador; confirme a orientação para reabrir o link e a ausência de alegação de recuperação automática.
-6. Teste convite inválido, expirado, revogado, usado e falha de rede; nenhum estado deve revelar o token ou criar membership indevida.
-7. Valide cópia, compartilhamento nativo, reload e layout em 375 px, 390 px e desktop.
-8. Com contas distintas e evidências sanitizadas, revalide RLS, uso único e concorrência antes de commit, push ou deploy.
+1. Confirme que um novo link contém o token apenas após `#`, que a primeira requisição observada não contém o segredo e que a URL fica limpa logo após a abertura.
+2. Teste o link legado e confirme que `?token=` desaparece sem ser reemitido em navegação, redirect, erro, log ou telemetria.
+3. Valide inspeção e aceite após login, cadastro sem confirmação e cadastro com confirmação de e-mail na mesma aba.
+4. Abra a confirmação em outra aba e em outro navegador; confirme a orientação para reabrir o link e a ausência de alegação de recuperação automática.
+5. Teste convite inválido, expirado, revogado, usado e falha de rede; nenhum estado deve revelar o token ou criar membership indevida.
+6. Valide cópia, compartilhamento nativo, reload e layout em 375 px, 390 px e desktop.
+7. Com contas distintas e evidências sanitizadas, revalide RLS, uso único e concorrência antes de qualquer push ou deploy.
 
 Esta alteração trata o SEC-06A-001. Permanecem abertos os demais achados do relatório `docs/audits/06A-security-audit.md`, inclusive SEC-06A-002 sobre consumo por membro existente, SEC-06A-003 sobre `avatar_path`, SEC-06A-004 sobre prova dinâmica de isolamento e as verificações operacionais de Auth, headers, logs e rate limits. Nenhuma RPC, grant, policy RLS ou migration foi alterada nesta entrega.
 
 **Status da Entrega 06A.1:** homologação funcional aprovada com 12/12 verificações, conforme confirmação do responsável. Essa aprovação funcional não comprova o isolamento remoto, não encerra os demais achados da auditoria e não altera o status **NO-GO para abertura pública como SaaS**.
 
-**Validação local da Entrega 06A.1:** NÃO EXECUTADA — o Node.js 21.5.0 deste PC é incompatível com Vite 8/Rolldown. Os testes foram escritos e revisados estaticamente; lint, typecheck, testes e build aguardam ambiente com Node 24 LTS.
+**Validação automatizada da Entrega 06A.1:** executada em 23/11/2026 com Node.js 22.14.0 e npm 10.9.2. `npm ci`, lint, typecheck, 127/127 testes em 30 arquivos e build de produção foram aprovados. O build manteve o aviso conhecido do chunk principal acima de 500 kB; a otimização do bundle continua como débito técnico.
 
 ### Gestão de membros da Entrega 05C
 

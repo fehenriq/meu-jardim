@@ -386,6 +386,16 @@ Esta alteração trata o SEC-06A-001. Permanecem abertos os demais achados do re
 
 **Validação automatizada da Entrega 06A.1:** executada em 23/11/2026 com Node.js 22.14.0 e npm 10.9.2. `npm ci`, lint, typecheck, 127/127 testes em 30 arquivos e build de produção foram aprovados. O build manteve o aviso conhecido do chunk principal acima de 500 kB; a otimização do bundle continua como débito técnico.
 
+### Preparação da homologação de isolamento da Entrega 06A.2
+
+A primeira fase da 06A.2 prepara a homologação dinâmica de RLS, RPCs, Storage, revogação e isolamento multi-tenant. O plano reproduzível está em `docs/audits/06A2-isolation-test-plan.md` e o registro inicialmente vazio em `docs/audits/06A2-isolation-results.md`. A matriz usa três contas dedicadas A/B/C, dois jardins exclusivos, dados sintéticos com prefixo e allowlist obrigatória, clientes independentes e evidências sanitizadas.
+
+**Estado da Entrega 06A.2:** preparação local concluída; execução remota **NÃO EXECUTADA** e dependente de autorização explícita, confirmação de projeto Supabase de homologação e criação manual de fixtures descartáveis. Nenhuma conta, dado, migration, policy, grant ou configuração remota foi alterada nesta fase.
+
+**Validação local da preparação 06A.2:** lint e typecheck aprovados, 127/127 testes em 30 arquivos aprovados e build de produção concluído. Permanece o aviso conhecido do chunk principal acima de 500 kB.
+
+Testes contratuais locais não comprovam RLS, Storage, revogação ou isolamento no PostgreSQL real. SEC-06A-004 permanece não verificado; SEC-06A-002/003/005/007/009 e os demais débitos continuam abertos. O status permanece **NO-GO para abertura pública como SaaS**.
+
 ### Gestão de membros da Entrega 05C
 
 A migration incremental `202611200003_garden_member_management.sql` adiciona RPCs de escopo mínimo para listar membros, promover/rebaixar, remover e sair de um jardim. Ela foi aplicada manualmente no Supabase e passou nas verificações estruturais das RPCs, permissões `EXECUTE` para `authenticated`, revogação de acesso público e locks de proteção do último administrador.
